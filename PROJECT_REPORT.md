@@ -233,6 +233,9 @@ Read only in `backend/app/config.py`.
 | `LLM_TOKEN_BUDGET_OUTPUT` | `300000` | Hard stop for total output tokens |
 | `EMBED_TOKEN_BUDGET` | `400000` | Hard stop for total embedding tokens |
 | `MAX_LLM_CALLS_PER_CASE` | `6` | Circuit breaker per investigation |
+| `LLM_EXTRA_REQUEST_FIELDS` | empty | Optional JSON passed to Bedrock as `additionalModelRequestFields` (only if the smoke test shows the model needs it) |
+| `API_BASE_URL` | `http://localhost:8000` | The backend forwards decisions to its own mock case system route here |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated origins allowed to call the API (change both ports if 8000/5173 are taken) |
 | `MONGO_URI` | `mongodb://localhost:27017/caselens` | Docker maps the port to the laptop |
 | `CHROMA_PATH` | `data/chroma` | Embedded Chroma folder |
 | `CHROMA_COLLECTION` | `reg_docs` | |
