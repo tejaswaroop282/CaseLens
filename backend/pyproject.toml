@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caselens"
+version = "0.1.0"
+description = "CaseLens: small fan-pattern financial-crime compliance prototype"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic>=2",
+  "pydantic-settings",
+  "pymongo",
+  "boto3",
+  "langchain-aws",
+  "langchain-core",
+  "langchain-chroma",
+  "langchain-text-splitters",
+  "chromadb",
+  "langgraph",
+  "langsmith",
+  "pypdf",
+  "pandas",
+  "pyyaml",
+  "structlog",
+  "httpx",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["app*", "pipeline*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-m 'not integration'"
+markers = ["integration: needs MongoDB and/or AWS; skipped by default"]
+
+[tool.ruff]
+line-length = 120
