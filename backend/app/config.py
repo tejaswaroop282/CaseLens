@@ -6,14 +6,15 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore",
+                                      populate_by_name=True)
 
     # AWS
     aws_region: Optional[str] = None
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
     embed_dimensions: int = 512
     llm_max_tokens: int = 1000
     llm_temperature: float = 0.0
-    llm_extra_request_fields: Optional[dict[str, Any]] = None
+    llm_extra_request_fields_json: Optional[str] = Field(default=None, alias="LLM_EXTRA_REQUEST_FIELDS")
 
     # Token budget
     llm_token_budget_input: int = 1_500_000
@@ -59,15 +60,21 @@ class Settings(BaseSettings):
     id_pattern: str = r"\b[0-9A-F]{8,12}\b"
 
     @field_validator("aws_profile", "s3_bucket", "bedrock_llm_id", "langsmith_api_key", "max_rows",
-                     "llm_extra_request_fields", "aws_region", mode="before")
+                     "llm_extra_request_fields_json", "aws_region", mode="before")
     @classmethod
     def _empty_is_none(cls, v):
         return None if isinstance(v, str) and not v.strip() else v
 
-    @field_validator("llm_extra_request_fields", mode="before")
+    @field_validator("llm_extra_request_fields_json", mode="after")
     @classmethod
-    def _parse_json(cls, v):
-        return json.loads(v) if isinstance(v, str) else v
+    def _valid_json(cls, v):
+        if v is not None and not isinstance(json.loads(v), dict):
+            raise ValueError("LLM_EXTRA_REQUEST_FIELDS must be a JSON object")
+        return v
+
+    @property
+    def llm_extra_request_fields(self) -> Optional[dict[str, Any]]:
+        return json.loads(self.llm_extra_request_fields_json) if self.llm_extra_request_fields_json else None
 
     @field_validator("chroma_path", mode="after")
     @classmethod
