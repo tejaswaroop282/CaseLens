@@ -12,6 +12,7 @@
   title: "FATF, INTERPOL and Egmont Group (2023): Illicit Financial Flows from Cyber-Enabled Fraud"
   url: "https://www.fatf-gafi.org/en/publications/Methodsandtrends/illicit-financial-flows-cyber-enabled-fraud.html"
   retrieved_on: 2026-11-12          # downloaded by hand in a browser (the site blocks scripted downloads)
+  note: "(c) FATF/OECD, INTERPOL, Egmont Group; reproduction requires permission. Kept only in gitignored data/ and the private S3 bucket; the app shows short cited excerpts with a link to the official page."
   file: fatf_cyber_enabled_fraud_2023.pdf
 
 - doc_id: ffiec_appendix_f
