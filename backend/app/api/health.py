@@ -25,3 +25,15 @@ def health() -> dict:
         "data_loaded": data_loaded,
         "tokens_remaining": tokens_remaining,
     }
+
+
+@router.get("/meta")
+def meta() -> dict:
+    """What the UI needs to build valid scenarios: slice length and the payment formats in the data."""
+    from app.api.common import jsonable
+    d = db.get_db()
+    m = d.pipeline_meta.find_one({"_id": "meta"}, {"_id": 0}) or {}
+    return jsonable({"data_loaded": bool(m), "slice_hours": m.get("slice_hours"), "data_origin": m.get("data_origin"),
+                     "slice_end": m.get("slice_end"), "dataset": m.get("dataset"),
+                     "payment_formats": sorted(d.stg_transactions.distinct("payment_format")) if m else [],
+                     "model_id": get_settings().bedrock_llm_id, "prompt_version": get_settings().prompt_version})

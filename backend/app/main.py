@@ -11,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import health, scenarios
+from app.api import cases, health, scenarios
 from app.budget import TokenBudgetExceeded
+from app.config import get_settings
 from app.errors import AppError
 from app.llm import apply_langsmith_env
 from app.logging import get_logger
@@ -35,7 +36,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="CaseLens", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origin_list, allow_methods=["*"],
+                   allow_headers=["*"])
 
 
 def error_body(code: str, message: str, details: dict | None = None) -> dict:
@@ -98,3 +100,4 @@ async def internal_error(request: Request, exc: Exception):
 
 app.include_router(health.router, prefix="/api")
 app.include_router(scenarios.router, prefix="/api")
+app.include_router(cases.router, prefix="/api")

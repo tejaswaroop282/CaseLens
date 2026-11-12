@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     chroma_path: Path = Path("data/chroma")
     chroma_collection: str = "reg_docs"
 
+    # API (the backend forwards decisions to its own mock case system route)
+    api_base_url: str = "http://localhost:8000"
+    cors_origins: str = "http://localhost:5173"          # comma-separated
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     # LangSmith
     langsmith_tracing: bool = True
     langsmith_api_key: Optional[str] = None
