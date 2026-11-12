@@ -39,7 +39,8 @@ def _matches(x: float, decimals: int, is_pct: bool, refs: list[float]) -> bool:
             if is_pct and round(y * 100, decimals) == round(x, decimals): return True
     return False
 
-def check_claim(c: Claim, facts: dict[str, Fact], chunk_ids: set[str], where: str) -> list[str]:
+def check_claim(c: Claim, facts: dict[str, Fact], chunk_ids: set[str], where: str,
+                id_re: re.Pattern = ID_RE) -> list[str]:
     errs: list[str] = []
     if not c.fact_ids and not c.chunk_ids:
         return [f"{where}: claim has no fact_ids or chunk_ids"]
@@ -55,21 +56,24 @@ def check_claim(c: Claim, facts: dict[str, Fact], chunk_ids: set[str], where: st
             dec = len(m.group(2)) - 1 if m.group(2) else 0
             if not _matches(float(raw), dec, bool(m.group(3)), refs):
                 errs.append(f"{where}: number '{m.group(0).strip()}' not found in referenced facts {c.fact_ids}")
-    for tok in ID_RE.findall(c.text):
+    for tok in id_re.findall(c.text):
+        if tok.isdigit() and c.fact_ids:
+            continue      # a digits-only token was already verified by the number rule above (CaseLens change)
         if tok not in ref_text:
             errs.append(f"{where}: id '{tok}' not found in referenced facts")
     return errs
 
 def check_case_file(cf: CaseFile, facts_list: list[Fact], chunk_ids: set[str],
-                    hard_red_flag: bool = False) -> CheckResult:
+                    hard_red_flag: bool = False, id_pattern: str | None = None) -> CheckResult:
+    id_re = re.compile(id_pattern) if id_pattern else ID_RE      # ID_PATTERN from config (CaseLens change)
     facts = {f.id: f for f in facts_list}
     errs: list[str] = []
     if not cf.claims: errs.append("claims: at least one claim is required")
-    for i, c in enumerate(cf.claims): errs += check_claim(c, facts, chunk_ids, f"claims[{i}]")
-    for i, c in enumerate(cf.benign_explanations): errs += check_claim(c, facts, chunk_ids, f"benign[{i}]")
+    for i, c in enumerate(cf.claims): errs += check_claim(c, facts, chunk_ids, f"claims[{i}]", id_re)
+    for i, c in enumerate(cf.benign_explanations): errs += check_claim(c, facts, chunk_ids, f"benign[{i}]", id_re)
     for i, c in enumerate(cf.typology_context):
         if not c.chunk_ids: errs.append(f"typology[{i}]: needs chunk_ids")
-        else: errs += check_claim(c, facts, chunk_ids, f"typology[{i}]")
+        else: errs += check_claim(c, facts, chunk_ids, f"typology[{i}]", id_re)
         if not c.fact_ids and NUM_RE.search(c.text):
             errs.append(f"typology[{i}]: statements that cite only documents must not contain numbers")
     if cf.verdict == "likely_legitimate":

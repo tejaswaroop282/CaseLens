@@ -22,6 +22,15 @@ class Claim(BaseModel):
     chunk_ids: list[str] = Field(default_factory=list)
 
 
+class TypologyNotes(BaseModel):
+    items: list[Claim] = Field(default_factory=list, max_length=3)          # each must have chunk_ids
+
+
+class BenignNotes(BaseModel):
+    explanations: list[Claim] = Field(default_factory=list, max_length=4)   # each must have fact_ids
+    missing_evidence: list[str] = Field(default_factory=list, max_length=6)
+
+
 class CaseFile(BaseModel):
     verdict: Verdict
     summary: str = Field(max_length=800)
