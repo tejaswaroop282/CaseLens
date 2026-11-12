@@ -1,14 +1,15 @@
 """Scenario Studio endpoints (docs/04 section 2)."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from pydantic import BaseModel
 
 from app.api.common import database, jsonable, run_job
-from app.rules.engine import ScenarioStateError, execute_run, start_run
-from app.errors import InvalidState
+from app.errors import InvalidState, ValidationFailed
+from app.rules.engine import RangeError, ScenarioStateError, execute_run, start_run
 from app.scenario import service
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
@@ -57,15 +58,48 @@ def clone(scenario_id: str, db=Depends(database)):
     return jsonable(service.clone(db, scenario_id))
 
 
-@router.post("/{scenario_id}/run", status_code=202)
-def run(scenario_id: str, background: BackgroundTasks, db=Depends(database)):
-    service.get(db, scenario_id)                                   # 404 if missing
+class RunBody(BaseModel):
+    mode: Literal["all", "range", "new"] = "all"
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+
+
+def _start(db, scenario_id: str, body: RunBody) -> str:
     try:
-        run_id = start_run(db, scenario_id)
+        return start_run(db, scenario_id, body.mode, body.start, body.end)
     except ScenarioStateError as e:
         raise InvalidState(str(e))
+    except RangeError as e:
+        raise ValidationFailed(str(e), code="invalid_range")
+
+
+@router.post("/run-new-data", status_code=202)
+def run_all_on_new_data(background: BackgroundTasks, db=Depends(database)):
+    """After an upload: run every completed scenario on its new, complete windows (D17)."""
+    started, skipped = [], []
+    for sc in db.scenarios.find({"status": "completed"}, {"scenario_id": 1, "intent_text": 1}):
+        try:
+            run_id = start_run(db, sc["scenario_id"], "new")
+        except (ScenarioStateError, RangeError) as e:
+            skipped.append({"scenario_id": sc["scenario_id"], "reason": str(e)})
+            continue
+        background.add_task(run_job, "rule_run", execute_run, db, sc["scenario_id"], run_id)
+        started.append({"scenario_id": sc["scenario_id"], "run_id": run_id})
+    return {"started": started, "skipped": skipped}
+
+
+@router.post("/{scenario_id}/run", status_code=202)
+def run(scenario_id: str, background: BackgroundTasks, body: Optional[RunBody] = None, db=Depends(database)):
+    service.get(db, scenario_id)                                   # 404 if missing
+    run_id = _start(db, scenario_id, body or RunBody())
     background.add_task(run_job, "rule_run", execute_run, db, scenario_id, run_id)
     return {"run_id": run_id, "status": "running"}
+
+
+@router.get("/{scenario_id}/runs")
+def runs(scenario_id: str, db=Depends(database)):
+    service.get(db, scenario_id)
+    return jsonable({"items": list(db.rule_runs.find({"scenario_id": scenario_id}, {"_id": 0}).sort("started_at", -1))})
 
 
 @router.get("/{scenario_id}/examples")

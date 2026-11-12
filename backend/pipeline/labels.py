@@ -71,6 +71,7 @@ def build_labels(blocks: list[PatternBlock], key_to_tx: dict[str, list[str]], sl
                 c["fan_blocks_kept"] += 1
                 b.blocks.append({"pattern_id": blk.pattern_id, "pattern_type": blk.pattern_type,
                                  "tx_ids": sorted(set(matched)), "n_lines": len(blk.lines),
+                                 "first_ts": blk.first_ts, "last_ts": blk.last_ts,      # for date-range recall (D17)
                                  "n_matched": len(blk.lines) - n_unmatched, "n_unmatched": n_unmatched})
         if n_unmatched and len(b.notes) < 20:
             b.notes.append(f"{blk.pattern_id} ({blk.pattern_type}): {n_unmatched} unmatched in-slice lines")

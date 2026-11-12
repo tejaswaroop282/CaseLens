@@ -7,6 +7,7 @@ import { cx, Icon, type IconName } from "./ui";
 const NAV: { to: string; label: string; icon: IconName; hint: string }[] = [
   { to: "/scenarios", label: "Scenario Studio", icon: "studio", hint: "Turn a worry into a rule" },
   { to: "/alerts", label: "Alert queue", icon: "queue", hint: "Investigate and decide" },
+  { to: "/data", label: "Data", icon: "database", hint: "Upload new transactions" },
 ];
 
 export default function Layout() {

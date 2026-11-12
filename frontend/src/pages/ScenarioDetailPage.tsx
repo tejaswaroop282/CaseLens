@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { RunHistory, RunPanel } from "../components/runs";
 import { ExamplesTable, MetricsCards, RunStatus, SpecEditor } from "../components/scenario";
 import { ErrorBox, Icon, Loading, PageHeader, StatusPill } from "../components/ui";
 import { fmtDateTime } from "../lib/format";
@@ -26,10 +27,17 @@ export default function ScenarioDetailPage() {
         actions={<StatusPill status={s.status} />} />
       <div className="space-y-6">
         <SpecEditor scenario={s} meta={meta.data} />
+        <RunPanel scenario={s} meta={meta.data} />
         <RunStatus run={run} />
         {run?.status === "completed" && run.metrics && (
           <>
+            {run.mode && run.mode !== "all" && run.range_start && (
+              <p className="text-sm text-slate-600">
+                Latest run: <span className="font-medium">{run.mode === "new" ? "new data" : "date range"}</span> {fmtDateTime(run.range_start)} → {fmtDateTime(run.range_end)}
+              </p>
+            )}
             <MetricsCards run={run} scenarioId={s.scenario_id} />
+            <RunHistory scenarioId={s.scenario_id} refreshKey={run.run_id} />
             <ExamplesTable scenarioId={s.scenario_id} />
           </>
         )}

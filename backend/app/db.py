@@ -32,6 +32,7 @@ def ensure_indexes(db: Database | None = None) -> None:
     db.stg_transactions.create_index("tx_id", unique=True)
     db.stg_transactions.create_index([("from_account", ASCENDING), ("ts", ASCENDING)])
     db.stg_transactions.create_index([("to_account", ASCENDING), ("ts", ASCENDING)])
+    db.stg_transactions.create_index("row_key")          # not unique: the source file has genuine duplicates
     db.stg_labels.create_index("tx_id", unique=True)
     db.stg_pattern_blocks.create_index("pattern_id", unique=True)
     db.stg_pattern_blocks.create_index("pattern_type")

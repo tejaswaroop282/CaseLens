@@ -61,7 +61,9 @@ def check_staging(db) -> list[Check]:
     out = [_eq("staging", "written + rejected == in_slice", c["written"] + c["rejected"], c["in_slice"])]
     share = c["rejected"] / c["in_slice"] if c["in_slice"] else 0.0
     out.append(Check("staging", "rejected share", "pass" if share <= 0.001 else "fail", round(share, 6), "<= 0.001"))
-    out.append(_eq("staging", "documents == written", coll.estimated_document_count(), c["written"]))
+    appended = sum(u.get("appended", 0) for u in meta.get("uploads", []))     # M7 uploads (D17)
+    out.append(_eq("staging", "documents == written + appended by uploads", coll.estimated_document_count(),
+                   c["written"] + appended))
     nulls = coll.count_documents({"$or": [{f: {"$in": [None, ""]}} for f in REQUIRED_FIELDS]})
     out.append(_eq("staging", "nulls in required fields", nulls, 0))
     dup = list(coll.aggregate([{"$group": {"_id": "$tx_id", "n": {"$sum": 1}}}, {"$match": {"n": {"$gt": 1}}},

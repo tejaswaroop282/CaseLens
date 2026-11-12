@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     mongo_max_gb: float = 1.0
     disk_budget_gb: float = 10.0
     max_alerts: int = 5000
+    max_upload_mb: int = 300           # M7 uploads (D17)
 
     # Investigation
     typology_top_k: int = 4

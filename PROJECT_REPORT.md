@@ -140,6 +140,7 @@ Reference-diagram mapping: Snowflake Raw/Staging/Intermediate/Marts → S3 `raw/
 | D14 | **Chroma embedded** (`PersistentClient` / `persist_directory`, folder `data/chroma`) | No extra container; tiny data | Chroma server |
 | D15 | **Only MongoDB runs in Docker**; FastAPI, pipeline and React run directly on Windows | User choice; lighter | Docker for everything |
 | D16 | Small test sets: 20 intents, 10 dev alerts, 30 eval alerts | Cost | Large evaluations |
+| D17 | **Upload of new transaction files (M7)**, appended to staging; scenarios can run on a **date range** and on **new data only**. Added 2026-11-12 at the user's request | The user has no live feed; without uploads the app cannot show "new data arrives → new alerts". Date ranges let a risk owner design a rule on one period and validate it on an unseen period. Costs no extra AWS services and no AI tokens | Live streaming API; replacing data on each upload; "a scenario runs once" (now: one full run, then further runs on a range or on new data) |
 
 ## 6. Tech stack and tested versions
 
@@ -322,7 +323,7 @@ State machines:
 
 ## 13. Milestones with acceptance checks
 
-Stop at **M6**.
+Stop at **M6**, then M7 (added by the user, D17).
 
 | M | Deliverable | Acceptance (all must pass) |
 |---|---|---|
@@ -333,6 +334,7 @@ Stop at **M6**.
 | **M4 Investigation** | Facts, tools, Chroma ingestion, 3 LLM nodes, checker, graph, leakage tests | 5 alerts run from the command line; each case ends `checked` or `needs_human_rewrite`; leakage tests pass; token ledger shows usage |
 | **M5 UI** | React: Scenario Studio, Alert queue, Case review, mock case system | In the browser: type a worry → approve → run → open an alert → investigate → see claims with evidence chips → decide; the decision is in `decisions` and in the mock case system |
 | **M6 Evaluation** | Eval set 2 (10 dev + 30 eval alerts), baselines, README | Results table with measured numbers, three systems compared, failures listed, cost summary from `llm_usage` |
+| **M7 Upload (D17)** | Data page: upload a CSV in the IBM transaction format (optional patterns file), validation report, append, run approved scenarios on new windows; scenario runs on a date range | Re-uploading the same file adds 0 rows; rows before the data origin are rejected; new alerts never duplicate old ones; uploaded labels go only to evaluation-only collections; a rule designed on day 1 can be validated on day 2 in the UI |
 
 ## 14. Definition of done
 

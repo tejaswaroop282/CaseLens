@@ -32,7 +32,10 @@ The quality goal is a **false-clear rate of zero**: a really suspicious alert mu
 - **One pattern only.** Worries about cash structuring, cycles, countries, risk scores or single large payments are
   rejected as unsupported on purpose.
 - **Fixed time windows** counted from the start of the data (not rolling windows), so a burst that straddles a window
-  boundary can be split in two.
+  boundary can be split in two. A window is evaluated only once it is complete, so the newest partial window waits
+  for the next upload.
+- **New data arrives by upload, not a live feed** (M7). Upload a CSV in the IBM transaction format on the Data page;
+  rows already loaded are skipped, and approved scenarios can then run on the new windows only.
 - **The checker verifies support, not judgement.** It confirms that each number and id in a claim appears in the cited
   facts. It cannot tell whether a claim is reasonable, and numbers written as words are not checked (the prompts ask
   for digits).
@@ -98,6 +101,19 @@ Command-line tools (all AI spending is estimated first and refused if over budge
 | `python -m app.eval.run_case_eval --split eval --reuse` | Final comparison of systems A, B, C |
 | `python -m app.scripts.estimate_cost --price-in X --price-out Y` | Spend so far from the token ledger |
 
+### Adding new data (M7)
+
+1. **Data** page → drop a CSV (IBM transaction format, optional IBM patterns file) → **Upload and check**. The
+   validation report shows rows read, rows to add, rows already loaded, and rejected rows with reasons. Nothing is
+   saved yet.
+2. **Add rows to the data** → rows are appended (the original file goes to S3 `raw/uploads/` when a bucket is set).
+3. **Run approved scenarios on new data** → new alerts appear in the Alert queue; old alerts are never duplicated.
+4. On a scenario page, **Run again → Date range** lets a rule designed on one period be checked on another
+   (for example, design on day 1, validate on day 2) and compared in the run history.
+
+An honest demo with no invented data: load day 1 of HI-Small with the pipeline, then upload later days of the same
+file as "new" data.
+
 ## 5. Data sources and licenses
 
 See `docs/SOURCES.md` (IBM AML: CDLA-Sharing-1.0; regulator documents under their publishers' terms) and
@@ -121,7 +137,7 @@ See `docs/SOURCES.md` (IBM AML: CDLA-Sharing-1.0; regulator documents under thei
 ## 7. Results
 
 **Not measured yet.** The pipeline, rule, Scenario Studio, investigation graph and UI are built and tested with fake
-models (106 automated tests), but nothing has been run on the real data slice or against Bedrock. This section will
+models (113 automated tests), but nothing has been run on the real data slice or against Bedrock. This section will
 hold only measured numbers:
 
 - Scenario metrics (alert count, precision, pattern recall) for fan-out and fan-in on the chosen slice.

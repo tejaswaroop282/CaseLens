@@ -69,8 +69,9 @@ def get(db, scenario_id: str) -> dict:
     if sc is None:
         raise NotFound(f"scenario {scenario_id} not found")
     run = db.rule_runs.find_one({"scenario_id": scenario_id}, {"_id": 0}, sort=[("started_at", -1)])
-    sc["latest_run"] = ({k: run.get(k) for k in ("run_id", "status", "error", "metrics", "started_at",
-                                                 "finished_at")} if run else None)
+    sc["latest_run"] = ({k: run.get(k) for k in ("run_id", "status", "error", "metrics", "started_at", "finished_at",
+                                                 "mode", "range_start", "range_end")} if run else None)
+    sc["run_count"] = db.rule_runs.count_documents({"scenario_id": scenario_id})
     return sc
 
 

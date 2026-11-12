@@ -17,10 +17,13 @@ def keys(direction: str) -> tuple[str, str]:
     raise ValueError(f"unsupported direction {direction!r}")
 
 
-def build_pipeline(direction: str, p: ScenarioParams, origin: datetime, slice_end: datetime) -> list[dict]:
+def build_pipeline(direction: str, p: ScenarioParams, origin: datetime, slice_end: datetime,
+                   start: datetime | None = None) -> list[dict]:
+    """Buckets always count from `origin`; `start`/`slice_end` only limit which transactions are read
+    (callers align them to bucket boundaries for date-range runs, D17)."""
     key, other = keys(direction)
     window_ms = p.window_hours * 3600 * 1000
-    match: dict = {"ts": {"$gte": origin, "$lt": slice_end}}
+    match: dict = {"ts": {"$gte": start or origin, "$lt": slice_end}}
     if p.payment_formats:
         match["payment_format"] = {"$in": list(p.payment_formats)}
     return [

@@ -1,5 +1,6 @@
 import type {
-  Alert, Case, Chunk, DecisionCounts, DecisionDoc, Decision, Examples, Meta, Page, Scenario, ScenarioParams,
+  Alert, Case, Chunk, DecisionCounts, DecisionDoc, Decision, Examples, Meta, Page, RuleRun, RunMode, Scenario,
+  ScenarioParams, Upload,
 } from "./types";
 
 const BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
@@ -35,7 +36,28 @@ export const api = {
   patch: (id: string, body: { direction?: "out" | "in"; params?: Partial<ScenarioParams> }) =>
     request<Scenario>(`/scenarios/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   approve: (id: string, approved_by: string) => post<{ status: string }>(`/scenarios/${id}/approve`, { approved_by }),
-  run: (id: string) => post<{ run_id: string; status: string }>(`/scenarios/${id}/run`),
+  run: (id: string, body: { mode: RunMode; start?: string; end?: string } = { mode: "all" }) =>
+    post<{ run_id: string; status: string }>(`/scenarios/${id}/run`, body),
+  runs: (id: string) => request<{ items: RuleRun[] }>(`/scenarios/${id}/runs`),
+  runAllOnNewData: () => post<{ started: { scenario_id: string; run_id: string }[]; skipped: { scenario_id: string; reason: string }[] }>(
+    "/scenarios/run-new-data"),
+  uploads: () => request<{ items: Upload[] }>("/uploads"),
+  upload: (id: string) => request<Upload>(`/uploads/${id}`),
+  createUpload: async (file: File, patterns?: File | null): Promise<Upload> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (patterns) fd.append("patterns", patterns);
+    let res: Response;
+    try { res = await fetch(`${BASE}/uploads`, { method: "POST", body: fd }); }
+    catch { throw new ApiError(0, "network_error", "Cannot reach the CaseLens API."); }
+    if (!res.ok) {
+      let body: { error?: { code: string; message: string } } = {};
+      try { body = await res.json(); } catch { /* not JSON */ }
+      throw new ApiError(res.status, body.error?.code ?? "error", body.error?.message ?? res.statusText);
+    }
+    return res.json();
+  },
+  appendUpload: (id: string) => post<{ status: string }>(`/uploads/${id}/append`),
   clone: (id: string) => post<Scenario>(`/scenarios/${id}/clone`),
   examples: (id: string, k = 5) => request<Examples>(`/scenarios/${id}/examples?k=${k}`),
   alerts: (q: { scenario_id?: string; status?: string; page: number }) => {

@@ -20,7 +20,8 @@ SIZE_CHECK_EVERY = 500_000
 REQUIRED = ["from_bank", "from_account", "to_bank", "to_account", "currency_paid", "currency_received",
             "payment_format"]
 DOC_FIELDS = ["tx_id", "ts", "from_bank", "from_account", "to_bank", "to_account", "amount_paid", "currency_paid",
-              "amount_received", "currency_received", "payment_format"]
+              "amount_received", "currency_received", "payment_format", "row_key"]
+# row_key = sha1 of the ten raw non-label fields: lets uploads skip rows that are already loaded (D17).
 
 
 def read_chunks(path: Path, usecols=None, max_rows: Optional[int] = None, chunksize: int = CHUNK):
@@ -134,12 +135,14 @@ def transform_chunk(ch: pd.DataFrame, start_index: int, slice_end: datetime, ban
     if bank_account:
         out["from_account"] = out["from_bank"] + "|" + out["from_account"]
         out["to_account"] = out["to_bank"] + "|" + out["to_account"]
+    keys = pd.Series([row_key(list(v)) for v in ch.loc[ok, KEY_COLS].itertuples(index=False, name=None)],
+                     index=ch.index[ok], dtype=object)
+    out["row_key"] = keys
     docs = [{k: (v.to_pydatetime() if k == "ts" else v) for k, v in zip(DOC_FIELDS, row)}
             for row in out[DOC_FIELDS].itertuples(index=False, name=None)]    # label column dropped
 
     lab = ok & (ch["is_laundering"] == "1")
-    label_rows = [{"tx_id": t, "row_key": row_key(list(vals))}
-                  for t, vals in zip(tx_ids[lab], ch.loc[lab, KEY_COLS].itertuples(index=False, name=None))]
+    label_rows = [{"tx_id": t, "row_key": keys[i]} for i, t in zip(ch.index[lab], tx_ids[lab])]
     return ChunkResult(docs, label_rows, rejects, int(considered.sum()), int(past.sum()))
 
 

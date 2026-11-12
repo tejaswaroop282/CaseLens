@@ -13,14 +13,27 @@ export interface RunMetrics {
   pattern_type: string; pattern_recall: { caught: number; total: number; recall: number | null };
   duration_seconds: number; slice_hours: number;
 }
+export type RunMode = "all" | "range" | "new";
 export interface RuleRun {
   run_id: string; status: "running" | "completed" | "failed"; error: { code: string; message: string } | null;
-  metrics: RunMetrics | null; started_at: string; finished_at: string | null;
+  metrics: (RunMetrics & { new_alerts?: number; existing_alerts?: number; range_hours?: number }) | null;
+  started_at: string; finished_at: string | null; mode?: RunMode; range_start?: string; range_end?: string;
+}
+export interface UploadReport {
+  ok: boolean; error?: string; rows?: number; valid?: number; rejected?: number; reasons?: Record<string, number>;
+  examples?: { row: number; reason: string }[]; already_loaded?: number; to_append?: number; labeled_rows?: number;
+  ts_min?: string | null; ts_max?: string | null; current_data_end?: string;
+}
+export interface Upload {
+  upload_id: string; filename: string; bytes: number; has_patterns: boolean; patterns_filename: string | null;
+  status: "validating" | "validated" | "invalid" | "appending" | "appended" | "failed"; report: UploadReport | null;
+  result: { appended: number; already_loaded: number; rejected: number; labels_added: number; data_end?: string } | null;
+  error?: string; created_at: string; s3_key?: string | null;
 }
 export interface Scenario {
   scenario_id: string; intent_text: string; spec: ScenarioSpec; status: ScenarioStatus;
   validation_problems?: Problem[]; created_at: string; approved_at: string | null; approved_by: string | null;
-  cloned_from?: string; latest_run?: RuleRun | null;
+  cloned_from?: string; latest_run?: RuleRun | null; covered_until?: string | null; run_count?: number;
 }
 export interface Page<T> { items: T[]; page: number; page_size: number; total: number }
 

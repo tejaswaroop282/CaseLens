@@ -70,6 +70,7 @@ const statusTone: Record<string, Tone> = {
   draft: "slate", approved: "blue", running: "violet", completed: "green", failed: "red", rejected: "red",
   new: "blue", investigating: "violet", reviewed: "green",
   queued: "slate", checked: "green", needs_human_rewrite: "amber", decided: "green",
+  validating: "violet", validated: "blue", invalid: "red", appending: "violet", appended: "green",
 };
 const statusText: Record<string, string> = { needs_human_rewrite: "Needs rewrite" };
 
@@ -154,7 +155,7 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
 }
 
 export type IconName = "studio" | "queue" | "alert" | "info" | "check" | "x" | "inbox" | "spark" | "doc" | "fact"
-  | "arrow-left" | "external" | "shield" | "copy" | "play" | "user";
+  | "arrow-left" | "external" | "shield" | "copy" | "play" | "user" | "upload" | "database";
 
 const paths: Record<IconName, ReactNode> = {
   studio: <><path d="M4 5h16M4 12h10M4 19h7" /><circle cx="18" cy="16" r="3" /></>,
@@ -173,6 +174,8 @@ const paths: Record<IconName, ReactNode> = {
   copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></>,
   play: <path d="M7 5v14l11-7z" />,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>,
+  upload: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
+  database: <><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" /><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>,
 };
 
 export function Icon({ name, className = "h-4 w-4" }: { name: IconName; className?: string }) {

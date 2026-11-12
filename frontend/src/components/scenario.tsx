@@ -34,10 +34,9 @@ export function SpecEditor({ scenario, meta }: { scenario: Scenario; meta?: Meta
     onSuccess: refresh,
   });
   const approve = useMutation({ mutationFn: () => api.approve(scenario.scenario_id, analyst), onSuccess: refresh });
-  const run = useMutation({ mutationFn: () => api.run(scenario.scenario_id), onSuccess: refresh });
   const clone = useMutation({ mutationFn: () => api.clone(scenario.scenario_id),
     onSuccess: (s) => { qc.invalidateQueries({ queryKey: ["scenarios"] }); nav(`/scenarios/${s.scenario_id}`); } });
-  const busy = save.isPending || approve.isPending || run.isPending || clone.isPending;
+  const busy = save.isPending || approve.isPending || clone.isPending;
   const problems = scenario.validation_problems ?? [];
   const maxWindow = meta?.slice_hours ?? 240;
 
@@ -99,7 +98,7 @@ export function SpecEditor({ scenario, meta }: { scenario: Scenario; meta?: Meta
         </div>
       )}
 
-      {[save, approve, run, clone].map((m, i) => m.isError && <div key={i} className="mt-4"><ErrorBox error={m.error} /></div>)}
+      {[save, approve, clone].map((m, i) => m.isError && <div key={i} className="mt-4"><ErrorBox error={m.error} /></div>)}
 
       <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
         {editable && <Button variant="secondary" onClick={() => save.mutate()} disabled={!dirty || busy} loading={save.isPending}>Save changes</Button>}
@@ -109,7 +108,6 @@ export function SpecEditor({ scenario, meta }: { scenario: Scenario; meta?: Meta
             <Icon name="check" />Approve
           </Button>
         )}
-        {status === "approved" && <Button onClick={() => run.mutate()} disabled={busy} loading={run.isPending}><Icon name="play" />Run on data</Button>}
         <Button variant="ghost" onClick={() => clone.mutate()} disabled={busy} loading={clone.isPending}><Icon name="copy" />Clone</Button>
         {status === "draft" && spec.direction && !analyst.trim() && <span className="text-xs text-slate-500">Enter your name in the top bar to approve.</span>}
         {scenario.approved_by && <span className="ml-auto text-xs text-slate-500">Approved by {scenario.approved_by} · {fmtDateTime(scenario.approved_at)}</span>}

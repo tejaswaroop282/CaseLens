@@ -26,6 +26,7 @@ dependencies = [
   "pyyaml",
   "structlog",
   "httpx",
+  "python-multipart",
 ]
 
 [project.optional-dependencies]
