@@ -1,24 +1,25 @@
-# Data notes (verify on the real files — hard rule 11)
+# Data notes (verified on the real files — hard rule 11)
 
-Status: **not yet verified** — the HI-Small files have not been downloaded. Fill in each line from the
-`pipeline_runs` notes of the `staging` and `labels` steps (`python -m pipeline.run --step all`).
+Status: **verified on 2026-11-14** with the raw, staging, labels and dq steps (dq: 16 checks, 0 failed, 2 warnings).
+Sources: `pipeline_runs` notes and direct queries on `stg_transactions`. The local raw files were then deleted
+(`KEEP_LOCAL_RAW=false`); the originals are in S3 `raw/ibm_aml/`.
 
 | Assumption | Expected | Measured | Loader decision |
 |---|---|---|---|
-| Header of `HI-Small_Trans.csv` | 11 columns, two named `Account` | | read with explicit names, `header=0` |
-| Timestamp format | `YYYY/MM/DD HH:MM`, read as UTC | | `%Y/%m/%d %H:%M`; failures rejected and logged |
-| File sorted by time | probably | | if sorted, reading stops after the slice |
-| Account ids unique across banks | unknown | | if not, ids become `bank|account` (`pipeline_meta.account_key`) |
-| Account id shape (for `ID_PATTERN`) | about 9 hex characters | | adjust `ID_PATTERN` in `.env` |
-| Patterns file shape | `BEGIN LAUNDERING ATTEMPT - TYPE` … `END …`, same 11-column lines | | parser in `pipeline/patterns.py` |
-| Pattern lines match transactions by row key | yes; duplicates possible | | all matching `tx_id`s attached |
-| Rows in the first 24 hours | about 0.5 million (estimate) | | |
-| Laundering share in the slice | about 0.1 % | | |
-| Complete fan-out / fan-in blocks in the slice | at least 10 each | | `slice_advice` result and chosen `SLICE_HOURS` |
-| Payment formats | includes a wire-like value (`Wire`?) | | needed by eval worry p07 |
-| Rejected rows | ≤ 0.1 % | | |
-| MongoDB size of the slice | 0.2–0.6 GB (estimate) | | |
-| Disk use after M1 (`disk_report`) | well under 10 GB | | |
+| Header of `HI-Small_Trans.csv` | 11 columns, two named `Account` | All 5,078,345 rows read, 0 rejected | Explicit names, `header=0` |
+| Timestamp format | `YYYY/MM/DD HH:MM`, read as UTC | 0 unparseable; file spans 2022-09-01 00:00 to 2022-09-18 16:18 | `%Y/%m/%d %H:%M` |
+| File sorted by time | probably | **Not sorted** | Whole file scanned (about 2.5 min); no early stop |
+| Account ids unique across banks | unknown | **Not unique:** 515,080 distinct ids, 8 under more than one bank | `account_key=bank_account`; ids stored as `bank` + `\|` + `account` |
+| Account id shape (for `ID_PATTERN`) | about 9 hex characters | 9 hex characters after the bank prefix (e.g. `8000EBD30`); 20,000 sampled ids all match | Default `ID_PATTERN` kept |
+| Patterns file shape | `BEGIN LAUNDERING ATTEMPT - TYPE` … `END …` | 370 blocks; types bipartite, cycle, fan_in, fan_out, gather_scatter, random, scatter_gather, stack | Parser unchanged |
+| Pattern lines match transactions by row key | yes | 465 of 465 in-slice lines matched | All matching `tx_id`s attached |
+| Rows in the slice | about 0.5 million per 24 h (estimate) | 2,076,752 rows in 72 h | — |
+| Laundering share in the slice | about 0.1 % | 0.054 % | — |
+| Complete fan-out / fan-in blocks in the slice | at least 10 each | **3 fan-out, 1 fan-in** at 72 h (24 h: 0 / 1); no slice up to 72 h reaches 10 | `SLICE_HOURS=72`; pattern recall rests on 4 blocks (stated in the README) |
+| Payment formats | includes a wire-like value | ACH, Bitcoin, Cash, Cheque, Credit Card, Reinvestment, Wire | `Wire` exists for eval worry p07 |
+| Rejected rows | ≤ 0.1 % | 0 | — |
+| MongoDB size of the slice | 0.2–0.6 GB (estimate) | 0.45 GB (storage + indexes) | Under `MONGO_MAX_GB=1` |
+| Disk use after M1 (`disk_report`) | well under 10 GB | 1.22 GB of 10 GB | — |
 
 ## Decisions made without data
 
