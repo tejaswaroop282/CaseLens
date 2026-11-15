@@ -30,6 +30,19 @@ median span 77 h (fan-out) and 85 h (fan-in), at most 96 h, often one payment ev
   slice (windows 6/12/24 h, thresholds 5/10/20/40) caught at most 1 of 3 fan-out and 0 of 1 fan-in blocks.
 - Catching them needs a long window (about 96 h) and a low threshold (about 5); the risk owner chooses the numbers.
 - Short slices cut blocks off, so `slice_advice` now checks slices up to 432 h (it stopped at 72 h before).
+- Read-only sweep on the 168 h slice (fixed buckets; precision = alerts with at least one laundering transaction):
+
+  | Direction | Window | Min counterparties | Alerts | Precision | Fan blocks caught |
+  |---|---|---|---|---|---|
+  | out | 72 h | 8 | 7,967 | 1.4 % | 9 / 24 |
+  | out | 168 h | 3 | 88,876 | 1.2 % | 23 / 24 |
+  | out | 168 h | 8 | 8,987 | 1.3 % | 11 / 24 |
+  | in | 72 h | 8 | 2,686 | 7.4 % | 6 / 16 |
+  | in | 168 h | 5 | 19,469 | 3.4 % | 14 / 16 |
+  | in | 168 h | 8 | 3,526 | 6.9 % | 7 / 16 |
+
+  Catching most fan blocks costs tens of thousands of alerts at 1–3 % precision; settings under `MAX_ALERTS=5000`
+  catch about half or fewer. The rule alone is noisy, which is the problem the investigation step is meant to help with.
 
 ## Decisions made without data
 
