@@ -12,7 +12,7 @@ from pathlib import Path
 from pipeline.common import PATTERNS_FILE, ibm_dir
 from pipeline.patterns import FAN_TYPES, PatternBlock, parse_file
 
-HOURS = (6, 12, 24, 48, 72)
+HOURS = (24, 48, 72, 96, 120, 144, 168, 216, 264, 312, 432)   # IBM fan blocks span up to 96 h
 MIN_BLOCKS = 10
 
 

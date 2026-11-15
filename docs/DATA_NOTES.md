@@ -12,14 +12,24 @@ Sources: `pipeline_runs` notes and direct queries on `stg_transactions`. The loc
 | Account ids unique across banks | unknown | **Not unique:** 515,080 distinct ids, 8 under more than one bank | `account_key=bank_account`; ids stored as `bank` + `\|` + `account` |
 | Account id shape (for `ID_PATTERN`) | about 9 hex characters | 9 hex characters after the bank prefix (e.g. `8000EBD30`); 20,000 sampled ids all match | Default `ID_PATTERN` kept |
 | Patterns file shape | `BEGIN LAUNDERING ATTEMPT - TYPE` … `END …` | 370 blocks; types bipartite, cycle, fan_in, fan_out, gather_scatter, random, scatter_gather, stack | Parser unchanged |
-| Pattern lines match transactions by row key | yes | 465 of 465 in-slice lines matched | All matching `tx_id`s attached |
-| Rows in the slice | about 0.5 million per 24 h (estimate) | 2,076,752 rows in 72 h | — |
-| Laundering share in the slice | about 0.1 % | 0.054 % | — |
-| Complete fan-out / fan-in blocks in the slice | at least 10 each | **3 fan-out, 1 fan-in** at 72 h (24 h: 0 / 1); no slice up to 72 h reaches 10 | `SLICE_HOURS=72`; pattern recall rests on 4 blocks (stated in the README) |
+| Pattern lines match transactions by row key | yes | 1,641 of 1,641 in-slice lines matched | All matching `tx_id`s attached |
+| Rows in the slice | about 0.5 million per 24 h (estimate) | 3,731,672 rows in 168 h (72 h: 2,076,752) | — |
+| Laundering share in the slice | about 0.1 % | 0.081 % | — |
+| Complete fan-out / fan-in blocks in the slice | at least 10 each | **24 fan-out, 16 fan-in** at 168 h (72 h: 3 / 1; 96 h: 10 / 5) | `SLICE_HOURS=168` (raised from 72 with the user's OK) |
 | Payment formats | includes a wire-like value | ACH, Bitcoin, Cash, Cheque, Credit Card, Reinvestment, Wire | `Wire` exists for eval worry p07 |
 | Rejected rows | ≤ 0.1 % | 0 | — |
-| MongoDB size of the slice | 0.2–0.6 GB (estimate) | 0.45 GB (storage + indexes) | Under `MONGO_MAX_GB=1` |
+| MongoDB size of the slice | 0.2–0.6 GB (estimate) | 0.79 GB at 168 h (storage + indexes) | Under `MONGO_MAX_GB=1` |
 | Disk use after M1 (`disk_report`) | well under 10 GB | 1.22 GB of 10 GB | — |
+
+## Finding: IBM fan patterns are low and slow
+
+Measured on all 88 fan blocks in `HI-Small_Patterns.txt`: median 7 (fan-out) and 8 (fan-in) transactions, at most 16;
+median span 77 h (fan-out) and 85 h (fan-in), at most 96 h, often one payment every few hours. Consequences:
+
+- A rule such as "10 or more counterparties in 24 hours" cannot catch them. A read-only threshold sweep on the 72 h
+  slice (windows 6/12/24 h, thresholds 5/10/20/40) caught at most 1 of 3 fan-out and 0 of 1 fan-in blocks.
+- Catching them needs a long window (about 96 h) and a low threshold (about 5); the risk owner chooses the numbers.
+- Short slices cut blocks off, so `slice_advice` now checks slices up to 432 h (it stopped at 72 h before).
 
 ## Decisions made without data
 
