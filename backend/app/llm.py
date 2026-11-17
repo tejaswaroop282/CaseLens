@@ -227,14 +227,47 @@ class NormalizedEmbeddings(Embeddings):
         return self._unit(self.inner.embed_query(text))
 
 
+class PacedEmbeddings(Embeddings):
+    """Keeps embedding requests under a per-minute quota (each text counts as one request on the Gemini
+    free tier). Splits large batches and waits when the last 60 seconds are full."""
+
+    def __init__(self, inner: Embeddings, per_minute: int, clock=None, sleep=None):
+        import time
+        self.inner, self.per_minute = inner, max(1, int(per_minute))
+        self.clock, self.sleep = clock or time.monotonic, sleep or time.sleep
+        self.sent: list[float] = []                      # send times of recent texts
+
+    def _wait_for(self, n: int) -> None:
+        while True:
+            now = self.clock()
+            self.sent = [t for t in self.sent if now - t < 60]
+            if len(self.sent) + n <= self.per_minute:
+                self.sent.extend([now] * n)
+                return
+            self.sleep(max(0.5, 60 - (now - self.sent[0]) + 0.5))
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        out: list[list[float]] = []
+        for i in range(0, len(texts), self.per_minute):
+            part = texts[i:i + self.per_minute]
+            self._wait_for(len(part))
+            out.extend(self.inner.embed_documents(part))
+        return out
+
+    def embed_query(self, text: str) -> list[float]:
+        self._wait_for(1)
+        return self.inner.embed_query(text)
+
+
 def _gemini_embeddings() -> Embeddings:
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
     s = get_settings()
     if not s.gemini_api_key:
         raise RuntimeError("GEMINI_API_KEY is not set in .env")
-    return NormalizedEmbeddings(GoogleGenerativeAIEmbeddings(
+    emb: Embeddings = NormalizedEmbeddings(GoogleGenerativeAIEmbeddings(
         model=s.gemini_embed_id, google_api_key=s.gemini_api_key, output_dimensionality=s.embed_dimensions))
+    return PacedEmbeddings(emb, s.embed_requests_per_minute) if s.embed_requests_per_minute else emb
 
 
 def _default_embeddings() -> Embeddings:

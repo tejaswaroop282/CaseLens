@@ -61,6 +61,8 @@ def test_gemini_provider_builds_gemini_models(monkeypatch):
         assert type(chat).__name__ == "ChatGoogleGenerativeAI"
         assert chat.temperature == 0 and chat.max_output_tokens == 1000 and chat.rate_limiter is not None
         emb = llm._default_embeddings()
+        if isinstance(emb, llm.PacedEmbeddings):          # pacing on when EMBED_REQUESTS_PER_MINUTE is set
+            emb = emb.inner
         assert isinstance(emb, llm.NormalizedEmbeddings) and emb.inner.output_dimensionality == 512
     finally:
         from app import config
@@ -77,3 +79,18 @@ def test_gemini_provider_requires_key(monkeypatch):
     finally:
         from app import config
         config.get_settings.cache_clear()
+
+
+def test_paced_embeddings_split_and_wait():
+    calls, slept, now = [], [], [0.0]
+
+    class Rec(FakeEmbeddings):
+        def embed_documents(self, texts):
+            calls.append(len(texts)); return [[1.0] for _ in texts]
+
+    def sleep(sec):
+        slept.append(sec); now[0] += sec
+    e = llm.PacedEmbeddings(Rec(size=1), per_minute=3, clock=lambda: now[0], sleep=sleep)
+    assert len(e.embed_documents(["a"] * 7)) == 7
+    assert calls == [3, 3, 1]                 # batches never exceed the quota
+    assert len(slept) == 2 and all(s >= 60 for s in slept)

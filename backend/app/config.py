@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 1000
     llm_temperature: float = 0.0
     llm_requests_per_minute: float = 0          # client-side rate limit for chat calls; 0 = none
+    embed_requests_per_minute: int = 0          # texts per minute sent for embedding; 0 = no pacing
 
     # Gemini (Google AI Studio API key)
     gemini_api_key: Optional[str] = None

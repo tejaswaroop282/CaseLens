@@ -227,6 +227,7 @@ Read only in `backend/app/config.py`.
 | `LLM_PROVIDER` | `gemini` | `gemini` or `bedrock` (D18) |
 | `GEMINI_API_KEY`, `GEMINI_LLM_ID`, `GEMINI_EMBED_ID`, `GEMINI_THINKING_BUDGET` | none, `gemini-3.5-flash-lite`, `gemini-embedding-001`, empty | Gemini provider |
 | `LLM_REQUESTS_PER_MINUTE` | `0` (none) | Client-side rate limit for chat calls |
+| `EMBED_REQUESTS_PER_MINUTE` | `0` (none) | Texts per minute sent for embedding (Gemini free tier: 100) |
 | `AWS_REGION`, `AWS_PROFILE` | none | Bedrock and S3 |
 | `S3_BUCKET` | none | Raw bucket |
 | `BEDROCK_LLM_ID` | none | **One** small chat model id (pick from your console; check Region availability) |
