@@ -73,7 +73,7 @@ A worry that is not the fan pattern: still 201 with `spec.direction = null` and 
 
 `POST /cases/{case_id}/decision`
 ```json
-{"decision": "dismiss", "reason": "Regular payroll-style payments to repeat counterparties.", "analyst": "tejaswaroop"}
+{"decision": "dismiss", "reason": "Regular payroll-style payments to repeat counterparties.", "analyst": "Ravi"}
 ```
 `decision` is `dismiss`, `escalate` or `need_info`. `reason` is required (3 to 1000 characters). Allowed when the case status is `checked`, `needs_human_rewrite` or `failed`. Effects (in order): insert into `decisions` (append only), set case `decided`, set alert `reviewed`, forward to the mock case system. Return 201 with the decision document.
 
