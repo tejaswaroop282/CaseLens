@@ -190,6 +190,16 @@ claim it made was supported by cited facts, but it **did not reduce the review l
 as did the tuned code baseline. On this data the value is a drafted, evidence-checked case file in about 26 seconds,
 not automatic triage. With 30 alerts the false-clear estimate is coarse (0 of 15 suspicious).
 
+### New data by upload (M7)
+
+Day 8 of the same IBM file (482,773 real transactions, 539 labeled) was uploaded on the Data page as "new data":
+0 rows rejected, all appended, original copied to S3, labels kept in the evaluation-only collections. With
+**Run approved scenarios on new data**, the 12-hour fan-in rule ran on day 8 only and raised **99 new alerts** (5.1 %
+precision) with **0 duplicates** of earlier alerts; the two 72-hour rules were skipped because the window that starts
+on day 7 is not complete until hour 216. Uploading the same file again found 482,773 rows already loaded and 0 to
+add. For this demo `MONGO_MAX_GB` was raised from 1 to 2 (with the user's approval); total project disk use after the
+upload is 1.39 GB of 10 GB.
+
 ### Failures and what changed
 
 1. **False clear on the dev split (prompt v1).** Alert `3bb81743e3af4173`: 3,263 payments to 694 accounts in 72 h,

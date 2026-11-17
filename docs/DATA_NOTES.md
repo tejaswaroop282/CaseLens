@@ -49,3 +49,11 @@ median span 77 h (fan-out) and 85 h (fan-in), at most 96 h, often one payment ev
 - F6 prior activity is not filtered by the scenario's payment formats (it is the account's earlier same-direction activity); the window facts F1–F5 and F7–F10 are.
 - F10 `total_amount` is a `{currency: total}` map because amounts are only summed within one currency.
 - The data origin is derived from each alert (`window_start − bucket × window_hours`) so the tools do not need `pipeline_meta`.
+
+## Upload of day 8 (M7, 2026-11-18)
+
+- 482,773 rows for 2022-09-08, 0 rejected, 539 labeled; after the append the data ends at 2022-09-09 00:00 (192 h),
+  4,214,445 staging rows, 27 fan-out and 21 fan-in complete blocks; dq 20 checks, 0 failed.
+- Fresh inserts grew MongoDB by about 1.3 KB per row (compacted average about 0.28 KB per row), so `MONGO_MAX_GB` was
+  raised from 1 to 2 with the user's approval. The upload size check uses the larger figure.
+
