@@ -1,0 +1,5 @@
+{
+  "cv_max": 0.01,
+  "repeat_min": 0.9,
+  "dev_auto_clear_rate": 0.0
+}

@@ -5,7 +5,7 @@ kaggle.json
 access_token
 
 # data, downloads, embedded Chroma
-data/
+/data/
 
 # Python
 .venv/

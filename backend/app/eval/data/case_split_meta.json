@@ -1,0 +1,23 @@
+{
+  "scenario_id": "fc1b0c6f223348ef8eaafc15d0291a20",
+  "spec": {
+    "direction": "out",
+    "params": {
+      "min_counterparties": 10,
+      "window_hours": 72,
+      "payment_formats": null
+    },
+    "legitimate_lookalikes": [
+      "payroll distribution",
+      "supplier payments",
+      "dividend payouts"
+    ],
+    "rationale": "The worry describes a fan-out pattern where one account sends funds to multiple destinations. The time window of 3 days was converted to 72 hours. Any mentioned amounts or other criteria are not supported by the prototype.",
+    "unsupported_reason": null
+  },
+  "seed": 42,
+  "notes": [],
+  "alerts_in_scenario": 2815,
+  "suspicious_in_scenario": 58,
+  "created_at": "2026-11-17T19:36:39.508159+00:00"
+}
