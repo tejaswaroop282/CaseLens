@@ -137,7 +137,7 @@ More detail in [docs/DATA_NOTES.md](docs/DATA_NOTES.md) and [PROJECT_REPORT.md](
 
 Prerequisites: Git, Python 3.12, Node.js LTS, Docker Desktop, a free Gemini API key
 ([aistudio.google.com](https://aistudio.google.com)) and a Kaggle API token (Kaggle → Settings → API; save it as
-`%USERPROFILE%\.kaggleccess_token`, never in the repo). AWS (S3) is optional for a local run;
+`%USERPROFILE%\.kaggle\access_token`, never in the repo). AWS (S3) is optional for a local run;
 see [PROJECT_REPORT.md](PROJECT_REPORT.md) §7 for the full setup.
 
 ```powershell
