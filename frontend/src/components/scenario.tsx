@@ -151,8 +151,12 @@ export function RunStatus({ run }: { run: RuleRun | null | undefined }) {
 
 export function MetricsCards({ run, scenarioId }: { run: RuleRun; scenarioId: string }) {
   const m = run.metrics!;
+  // hours actually evaluated: only complete windows count, so this can be less than the loaded slice
+  const evaluated = run.range_start && run.range_end
+    ? Math.round((Date.parse(run.range_end) - Date.parse(run.range_start)) / 3_600_000) : m.slice_hours;
   const cards = [
-    { label: "Alerts", value: m.alert_count.toLocaleString("en-US"), note: `in ${m.slice_hours} h of data · ${m.duration_seconds.toFixed(1)} s` },
+    { label: "Alerts", value: m.alert_count.toLocaleString("en-US"),
+      note: `in ${evaluated} h evaluated${evaluated !== m.slice_hours ? ` (of ${m.slice_hours} h loaded)` : ""} · ${m.duration_seconds.toFixed(1)} s` },
     { label: "Precision", value: fmtPct(m.alert_precision), note: `${m.suspicious_alert_count} alerts contain laundering-labeled transactions` },
     { label: "False alarms", value: m.false_alarm_count.toLocaleString("en-US"), note: "alerts with no labeled transaction" },
     { label: "Pattern recall", value: fmtPct(m.pattern_recall.recall),
