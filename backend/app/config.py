@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,13 +21,31 @@ class Settings(BaseSettings):
     aws_profile: Optional[str] = None
     s3_bucket: Optional[str] = None
 
-    # Bedrock
-    bedrock_llm_id: Optional[str] = None
-    bedrock_embed_id: str = "amazon.titan-embed-text-v2:0"
+    # Model provider (decision D18): "gemini" now; "bedrock" kept as the planned production path
+    llm_provider: Literal["gemini", "bedrock"] = "gemini"
     embed_dimensions: int = 512
     llm_max_tokens: int = 1000
     llm_temperature: float = 0.0
+    llm_requests_per_minute: float = 0          # client-side rate limit for chat calls; 0 = none
+
+    # Gemini (Google AI Studio API key)
+    gemini_api_key: Optional[str] = None
+    gemini_llm_id: str = "gemini-2.5-flash"
+    gemini_embed_id: str = "gemini-embedding-001"
+    gemini_thinking_budget: Optional[int] = 0   # 0 = no hidden reasoning tokens (keeps output within the cap)
+
+    # Bedrock
+    bedrock_llm_id: Optional[str] = None
+    bedrock_embed_id: str = "amazon.titan-embed-text-v2:0"
     llm_extra_request_fields_json: Optional[str] = Field(default=None, alias="LLM_EXTRA_REQUEST_FIELDS")
+
+    @property
+    def llm_model_id(self) -> Optional[str]:
+        return self.gemini_llm_id if self.llm_provider == "gemini" else self.bedrock_llm_id
+
+    @property
+    def embed_model_id(self) -> str:
+        return self.gemini_embed_id if self.llm_provider == "gemini" else self.bedrock_embed_id
 
     # Token budget
     llm_token_budget_input: int = 1_500_000
@@ -69,7 +87,8 @@ class Settings(BaseSettings):
     id_pattern: str = r"\b[0-9A-F]{8,12}\b"
 
     @field_validator("aws_profile", "s3_bucket", "bedrock_llm_id", "langsmith_api_key", "max_rows",
-                     "llm_extra_request_fields_json", "aws_region", mode="before")
+                     "llm_extra_request_fields_json", "aws_region", "gemini_api_key", "gemini_thinking_budget",
+                     mode="before")
     @classmethod
     def _empty_is_none(cls, v):
         return None if isinstance(v, str) and not v.strip() else v

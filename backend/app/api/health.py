@@ -36,4 +36,4 @@ def meta() -> dict:
     return jsonable({"data_loaded": bool(m), "slice_hours": m.get("slice_hours"), "data_origin": m.get("data_origin"),
                      "slice_end": m.get("slice_end"), "dataset": m.get("dataset"),
                      "payment_formats": sorted(d.stg_transactions.distinct("payment_format")) if m else [],
-                     "model_id": get_settings().bedrock_llm_id, "prompt_version": get_settings().prompt_version})
+                     "model_id": get_settings().llm_model_id, "prompt_version": get_settings().prompt_version})

@@ -55,8 +55,10 @@ Regulator PDFs (3) ─────┴─► S3 raw/ ─► pipeline ─► Mongo
 ```
 
 - Only **MongoDB runs in Docker**; FastAPI, the pipeline and React run on Windows. Chroma is embedded (`data/chroma`).
-- AWS: **S3, IAM and Bedrock only**. Chat model **GPT-OSS 20B** and **Titan Text Embeddings v2**, both in-region in
-  `ap-south-1` (decision D11 in `PROJECT_REPORT.md`).
+- **Model provider behind one switch** (`LLM_PROVIDER`, decision D18). Measured with **Google Gemini 2.5 Flash** and
+  **Gemini embeddings** (free API tier). **Amazon Bedrock** (Qwen3 Next 80B plus Titan Text Embeddings v2 in `ap-south-1`)
+  is implemented as the production path but not yet measured: the AWS account's Bedrock access was still pending.
+- AWS: **S3 and IAM** for raw data; Bedrock when enabled.
 - **LangSmith** is the only tracing and evaluation tool; everything also works with `LANGSMITH_TRACING=false`.
 
 ## 4. How to run (Windows, PowerShell)
@@ -65,7 +67,7 @@ Prerequisites: Git, Python 3.12, Node.js LTS, AWS CLI v2, Docker Desktop (WSL2).
 
 ```powershell
 git clone <repo> caseLens; cd caseLens
-Copy-Item .env.example .env          # fill in AWS_PROFILE, S3_BUCKET, BEDROCK_LLM_ID, LANGSMITH_API_KEY
+Copy-Item .env.example .env          # fill in GEMINI_API_KEY, AWS_PROFILE, S3_BUCKET, LANGSMITH_API_KEY
 & "$env:LocalAppData\Programs\Python\Python312\python.exe" -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install --no-cache-dir -e "backend[dev]"
@@ -74,7 +76,7 @@ docker compose up -d mongo
 cd backend
 pytest -q                            # unit tests (no network)
 pytest -q -m integration             # needs the MongoDB container
-python -m app.scripts.bedrock_smoke  # one chat reply, one structured output, one embedding (a few hundred tokens)
+python -m app.scripts.smoke          # one chat reply, one structured output, one embedding (a few hundred tokens)
 
 # data (download the two HI-Small files into data\ibm and the PDFs listed in docs\SOURCES.yaml into data\reg_docs)
 python -m pipeline.slice_advice      # choose SLICE_HOURS
@@ -128,7 +130,7 @@ See `docs/SOURCES.md` (IBM AML: CDLA-Sharing-1.0; regulator documents under thei
 - **Labels are hidden from the AI.** Ground truth lives only in `stg_labels`, `stg_pattern_blocks` and `alert_truth`.
   The tools have an allow-list that excludes them, responses strip truth keys, and leakage tests check tool outputs,
   every prompt, and every case document.
-- **Bedrock for two jobs only:** filling a scenario spec and writing case files. One small model, temperature 0,
+- **The LLM for two jobs only:** filling a scenario spec and writing case files. One small model, temperature 0,
   capped output, a per-case call limit and a **hard token budget in code** that persists across restarts and refuses
   calls when used up.
 - **A human decides.** Decisions are `dismiss`, `escalate` or `need_info`, append-only, with a required reason, and
@@ -137,7 +139,8 @@ See `docs/SOURCES.md` (IBM AML: CDLA-Sharing-1.0; regulator documents under thei
 ## 7. Results
 
 **Not measured yet.** The pipeline, rule, Scenario Studio, investigation graph and UI are built and tested with fake
-models (113 automated tests), but nothing has been run on the real data slice or against Bedrock. This section will
+models (118 automated tests). The data is loaded (168-hour slice) and verified (`docs/DATA_NOTES.md`); the AI runs are
+next. This section will
 hold only measured numbers:
 
 - Scenario metrics (alert count, precision, pattern recall) for fan-out and fan-in on the chosen slice.
@@ -148,14 +151,14 @@ hold only measured numbers:
 |---|---|---|---|---|---|---|---|
 | A. Rule only | | | | | | | |
 | B. Code baseline (CV_MAX=…, REPEAT_MIN=…) | | | | | | | |
-| C. CaseLens (GPT-OSS 20B, prompt v1) | | | | | | | |
+| C. CaseLens (Gemini 2.5 Flash, prompt v1) | | | | | | | |
 
 **Failures:** 3 to 5 concrete cases (what the system said, what was true, why, what changed) — to be written after
 the runs. **Limits:** see §2.
 
 ## 8. Cost and cleanup
 
-- Budget: $0–5 of Bedrock free credits. Defaults: 1.5 M input / 0.3 M output chat tokens, 0.4 M embedding tokens,
+- Budget: Gemini free tier now (no card); for Bedrock, $0–5 of free credits. Defaults: 1.5 M input / 0.3 M output chat tokens, 0.4 M embedding tokens,
   6 AI calls per case. Spend so far: `python -m app.scripts.estimate_cost` (look up current prices yourself).
 - Disk: project artifacts under 10 GB (`python -m pipeline.disk_report`).
 - Cleanup: `docker compose down -v` (deletes the MongoDB volume); delete `data\`; delete the S3 objects and bucket;

@@ -5,7 +5,7 @@ A small financial-crime compliance prototype with **one suspicious pattern**: th
 - **fan-in:** one receiver gets money from many different senders.
 
 Modules: **Scenario Studio (mini)**, **Investigation Agents (mini)**, a human review screen.
-Stack: React, FastAPI, MongoDB, ChromaDB, S3, Amazon Bedrock, LangChain, LangGraph, LangSmith.
+Stack: React, FastAPI, MongoDB, ChromaDB, S3, Google Gemini API (now) or Amazon Bedrock (planned production path, D18), LangChain, LangGraph, LangSmith.
 Constraints from the user: Windows laptop, 16 GB RAM, **disk under 10 GB**, **Bedrock spend $0 to $5 (free credits only)**, **small real data**, only MongoDB in Docker.
 
 **Audience: Claude Code.** Read this file fully, then read the detail file for the milestone you are working on.
@@ -92,7 +92,7 @@ flowchart LR
       MDB[("MongoDB 7")]
     end
   end
-  BR["AWS Bedrock ap-south-1: GPT-OSS 20B + Titan Embeddings v2"]
+  BR["LLM provider (D18): Gemini 2.5 Flash + Gemini embeddings now; Bedrock later"]
   LS["LangSmith"]
   S3 --> PIPE
   PIPE --> MDB
@@ -141,6 +141,7 @@ Reference-diagram mapping: Snowflake Raw/Staging/Intermediate/Marts → S3 `raw/
 | D15 | **Only MongoDB runs in Docker**; FastAPI, pipeline and React run directly on Windows | User choice; lighter | Docker for everything |
 | D16 | Small test sets: 20 intents, 10 dev alerts, 30 eval alerts | Cost | Large evaluations |
 | D17 | **Upload of new transaction files (M7)**, appended to staging; scenarios can run on a **date range** and on **new data only**. Added 2026-11-12 at the user's request | The user has no live feed; without uploads the app cannot show "new data arrives → new alerts". Date ranges let a risk owner design a rule on one period and validate it on an unseen period. Costs no extra AWS services and no AI tokens | Live streaming API; replacing data on each upload; "a scenario runs once" (now: one full run, then further runs on a range or on new data) |
+| D18 | **Model provider switch; Google Gemini API used now, Bedrock kept as the production path.** `LLM_PROVIDER=gemini` uses `gemini-2.5-flash` (thinking budget 0) and `gemini-embedding-001` at 512 dimensions, L2-normalized; `LLM_PROVIDER=bedrock` uses D11 unchanged. Every call still goes through the token ledger, temperature 0, capped output and the per-case call limit; a client-side rate limit (`LLM_REQUESTS_PER_MINUTE`) respects free-tier quotas. Added 2026-11-17 at the user's request | On the user's account (free plan, verification pending) every Bedrock call, including Amazon's own Titan, returned `ValidationException: Operation not allowed` for three days; support cases stayed unassigned. The free Gemini tier needs no card and covers chat and embeddings with one key. Data sent is simulated public data plus public regulator text; Google may use free-tier inputs to improve its models | Waiting for AWS; a local model via Ollama (about 6 GB of disk, weaker schema filling); paid APIs |
 
 ## 6. Tech stack and tested versions
 
@@ -223,6 +224,9 @@ Read only in `backend/app/config.py`.
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `LLM_PROVIDER` | `gemini` | `gemini` or `bedrock` (D18) |
+| `GEMINI_API_KEY`, `GEMINI_LLM_ID`, `GEMINI_EMBED_ID`, `GEMINI_THINKING_BUDGET` | none, `gemini-2.5-flash`, `gemini-embedding-001`, `0` | Gemini provider |
+| `LLM_REQUESTS_PER_MINUTE` | `0` (none) | Client-side rate limit for chat calls |
 | `AWS_REGION`, `AWS_PROFILE` | none | Bedrock and S3 |
 | `S3_BUCKET` | none | Raw bucket |
 | `BEDROCK_LLM_ID` | none | **One** small chat model id (pick from your console; check Region availability) |
@@ -361,7 +365,8 @@ Stop at **M6**, then M7 (added by the user, D17).
 Assumptions: "fan-out and fan-in" means **one pattern family with two directions** (the user answered both options when asked for one pattern); sanctions screening and OFAC data are dropped; the first 24 hours of HI-Small is a good starting slice; one small Bedrock model is enough.
 Answered by the user: has a Kaggle account; 16 GB RAM; disk under 10 GB; Windows, nothing configured; Docker only for MongoDB; Bedrock budget $0 to $5 from free credits; wants a small real-data prototype with one pattern.
 Answered on 2026-11-11/12:
-- Region `ap-south-1`. Chat model **GPT-OSS 20B** (in-region; see D11). Embeddings Titan Text Embeddings v2 (in-region).
+- Region `ap-south-1`. Chat model **GPT-OSS 20B** (in-region; see D11), later Qwen3 Next 80B. Embeddings Titan Text Embeddings v2 (in-region).
+- 2026-11-17: Bedrock blocked on the account (verification pending). The user chose to proceed with another provider and keep Bedrock as a future addition (D18).
 - The 10 GB cap covers **project artifacts only** (venv, `node_modules`, `data/`, Chroma, MongoDB image and volume), not Docker Desktop, WSL2 or installed tools.
 - Python 3.12 (python.org) for the venv; Node.js current LTS; the repo is a git repo in `caseLens`.
 - LangSmith tracing is on (the user has a key).

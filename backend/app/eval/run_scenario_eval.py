@@ -61,7 +61,7 @@ def run_langsmith(rows, target, s) -> None:
         return evaluator
     wrapped = [adapt(ev) for ev in EVALUATORS]
     client.evaluate(target, data=DATASET_NAME, evaluators=wrapped, experiment_prefix=f"scenario-parse-{s.prompt_version}",
-                    metadata={"model_id": s.bedrock_llm_id, "prompt_version": s.prompt_version},
+                    metadata={"model_id": s.llm_model_id, "prompt_version": s.prompt_version},
                     max_concurrency=1)          # sequential: keeps per-row token accounting exact
 
 
@@ -80,7 +80,7 @@ def main(argv=None) -> int:
     rows = load_jsonl(DATASET_FILE)[: a.limit]
     slice_hours, formats = data_context(db)
     est, rem = estimate(len(rows)), get_chat_ledger().remaining()
-    print(f"rows={len(rows)} model={s.bedrock_llm_id} prompt={s.prompt_version} slice_hours={slice_hours}")
+    print(f"rows={len(rows)} model={s.llm_model_id} prompt={s.prompt_version} slice_hours={slice_hours}")
     print(f"estimated tokens: in={est['input']} out={est['output']} | remaining budget: in={rem['input']} "
           f"out={rem['output']}")
     if est["input"] > rem["input"] or est["output"] > rem["output"]:
@@ -110,7 +110,7 @@ def main(argv=None) -> int:
     summary["mean_latency_s"] = round(sum(p["latency_s"] for p in per_row) / n, 3)
     summary["total_tokens"] = {"input": sum(p["tokens"]["input"] for p in per_row),
                                "output": sum(p["tokens"]["output"] for p in per_row)}
-    db.eval_reports.insert_one({"eval": DATASET_NAME, "ts": datetime.now(timezone.utc), "model_id": s.bedrock_llm_id,
+    db.eval_reports.insert_one({"eval": DATASET_NAME, "ts": datetime.now(timezone.utc), "model_id": s.llm_model_id,
                                 "prompt_version": s.prompt_version, "langsmith": use_ls, "n": len(per_row),
                                 "summary": summary, "rows": per_row})
     print(f"\n{'id':5} {'dir':6} {'schema':>6} {'dir_ok':>6} {'params':>6} {'reject':>6}  error")

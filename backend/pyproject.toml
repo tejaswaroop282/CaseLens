@@ -15,6 +15,7 @@ dependencies = [
   "pymongo",
   "boto3",
   "langchain-aws",
+  "langchain-google-genai==4.4.3",
   "langchain-core",
   "langchain-chroma",
   "langchain-text-splitters",

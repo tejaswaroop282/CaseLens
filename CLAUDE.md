@@ -16,7 +16,7 @@ You are building CaseLens, a **small** financial-crime compliance prototype with
 ## Environment (fixed by the user)
 - **Windows laptop**, 16 GB RAM, **disk under 10 GB**, nothing configured yet. Use **PowerShell** commands. Keep code cross-platform (`pathlib`; operational scripts are Python commands).
 - **Only MongoDB runs in Docker.** FastAPI, the pipeline and React run directly on Windows. Chroma is **embedded** (folder `data/chroma`), not a server.
-- **Bedrock budget: $0 to $5 from free credits.** One small chat model plus Titan embeddings.
+- **Model provider (D18):** Gemini API (free tier) now, chat plus embeddings; Bedrock ($0 to $5 free credits) is the planned production path behind `LLM_PROVIDER`.
 - **Small real data:** IBM AML HI-Small, only two files (`HI-Small_Trans.csv`, `HI-Small_Patterns.txt`), only the first `SLICE_HOURS` hours (default 24). Never download the whole Kaggle dataset.
 
 ## What it is

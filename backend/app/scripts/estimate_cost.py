@@ -32,10 +32,10 @@ def main(argv=None) -> int:
                                            {"$sort": {"i": -1}}]))
     chat_usd = spend(llm["i"], llm["o"], a.price_in, a.price_out)
     emb_usd = emb["i"] / 1e6 * a.embed_price
-    print(f"chat model {s.bedrock_llm_id}: {llm['n']} calls, {llm['i']:,} in / {llm['o']:,} out tokens -> ${chat_usd:.4f}")
+    print(f"chat model {s.llm_model_id}: {llm['n']} calls, {llm['i']:,} in / {llm['o']:,} out tokens -> ${chat_usd:.4f}")
     for r in by_node:
         print(f"   {str(r['_id']):18} {r['n']:5} calls {r['i']:>10,} in {r['o']:>9,} out")
-    print(f"embeddings {s.bedrock_embed_id}: {emb['n']} calls, ~{emb['i']:,} tokens (estimated) -> ${emb_usd:.4f}")
+    print(f"embeddings {s.embed_model_id}: {emb['n']} calls, ~{emb['i']:,} tokens (estimated) -> ${emb_usd:.4f}")
     print(f"TOTAL ${chat_usd + emb_usd:.4f}  (budget limits: {s.llm_token_budget_input:,} in / "
           f"{s.llm_token_budget_output:,} out / {s.embed_token_budget:,} embed tokens)")
     return 0

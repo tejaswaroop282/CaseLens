@@ -45,11 +45,12 @@ def _usage_collection():
 
 
 def _persist(kind: str) -> Callable[[dict], None]:
-    model_id = get_settings().bedrock_llm_id if kind == "llm" else get_settings().bedrock_embed_id
+    s = get_settings()
+    model_id = s.llm_model_id if kind == "llm" else s.embed_model_id
 
     def write(doc: dict) -> None:
         try:
-            _usage_collection().insert_one({"kind": kind, "model_id": model_id,
+            _usage_collection().insert_one({"kind": kind, "model_id": model_id, "provider": s.llm_provider,
                                             "ts": datetime.now(timezone.utc), **doc})
         except Exception as e:     # the in-memory ledger still counts; the record is lost
             log.warning("llm_usage_persist_failed", kind=kind, error=type(e).__name__)
@@ -108,7 +109,43 @@ def budget_callback(meta: Optional[dict] = None) -> BudgetCallback:
 
 
 # ---------- chat model ----------
+_rate_limiter = None
+
+
+def _limiter():
+    """One shared client-side rate limiter for chat calls (free tiers limit requests per minute)."""
+    global _rate_limiter
+    rpm = get_settings().llm_requests_per_minute
+    if rpm and _rate_limiter is None:
+        from langchain_core.rate_limiters import InMemoryRateLimiter
+        _rate_limiter = InMemoryRateLimiter(requests_per_second=rpm / 60, check_every_n_seconds=0.2, max_bucket_size=1)
+    return _rate_limiter
+
+
+def _gemini_chat_model(max_tokens: Optional[int] = None):
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    s = get_settings()
+    if not s.gemini_api_key:
+        raise RuntimeError("GEMINI_API_KEY is not set in .env")
+    apply_langsmith_env()
+    kwargs: dict[str, Any] = dict(model=s.gemini_llm_id, google_api_key=s.gemini_api_key,
+                                  temperature=s.llm_temperature, max_output_tokens=max_tokens or s.llm_max_tokens,
+                                  max_retries=4, timeout=90)
+    if s.gemini_thinking_budget is not None:
+        kwargs["thinking_budget"] = s.gemini_thinking_budget
+    if _limiter() is not None:
+        kwargs["rate_limiter"] = _limiter()
+    return ChatGoogleGenerativeAI(**kwargs)
+
+
 def _default_chat_model(max_tokens: Optional[int] = None):
+    if get_settings().llm_provider == "gemini":
+        return _gemini_chat_model(max_tokens)
+    return _bedrock_chat_model(max_tokens)
+
+
+def _bedrock_chat_model(max_tokens: Optional[int] = None):
     from botocore.config import Config
     from langchain_aws import ChatBedrockConverse
 
@@ -127,6 +164,8 @@ def _default_chat_model(max_tokens: Optional[int] = None):
         kwargs["credentials_profile_name"] = s.aws_profile
     if s.llm_extra_request_fields:
         kwargs["additional_model_request_fields"] = s.llm_extra_request_fields
+    if _limiter() is not None:
+        kwargs["rate_limiter"] = _limiter()
     return ChatBedrockConverse(**kwargs)
 
 
@@ -169,7 +208,42 @@ class BudgetedEmbeddings(Embeddings):
         return out
 
 
+class NormalizedEmbeddings(Embeddings):
+    """Scales every vector to unit length. Gemini returns unnormalized vectors below 3072 dimensions;
+    Titan normalizes itself. Chroma's default distance is L2, which matches cosine only on unit vectors."""
+
+    def __init__(self, inner: Embeddings):
+        self.inner = inner
+
+    @staticmethod
+    def _unit(v: list[float]) -> list[float]:
+        n = sum(x * x for x in v) ** 0.5
+        return [x / n for x in v] if n else v
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._unit(v) for v in self.inner.embed_documents(texts)]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._unit(self.inner.embed_query(text))
+
+
+def _gemini_embeddings() -> Embeddings:
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+    s = get_settings()
+    if not s.gemini_api_key:
+        raise RuntimeError("GEMINI_API_KEY is not set in .env")
+    return NormalizedEmbeddings(GoogleGenerativeAIEmbeddings(
+        model=s.gemini_embed_id, google_api_key=s.gemini_api_key, output_dimensionality=s.embed_dimensions))
+
+
 def _default_embeddings() -> Embeddings:
+    if get_settings().llm_provider == "gemini":
+        return _gemini_embeddings()
+    return _bedrock_embeddings()
+
+
+def _bedrock_embeddings() -> Embeddings:
     from langchain_aws import BedrockEmbeddings
 
     s = get_settings()

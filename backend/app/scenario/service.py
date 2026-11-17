@@ -92,7 +92,7 @@ def create_from_intent(db, intent_text: str) -> dict:
     doc = {"scenario_id": scenario_id, "intent_text": text, "spec": spec.model_dump(), "status": "draft",
            "validation_problems": spec_problems(spec, slice_hours, formats),
            "created_at": _now(), "approved_at": None, "approved_by": None,
-           "parse_meta": {"model_id": s.bedrock_llm_id, "prompt_version": s.prompt_version,
+           "parse_meta": {"model_id": s.llm_model_id, "prompt_version": s.prompt_version,
                           "langsmith_run_id": None}}
     db.scenarios.insert_one(dict(doc))
     doc.pop("_id", None)

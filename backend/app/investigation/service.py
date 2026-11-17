@@ -34,7 +34,7 @@ def start_investigation(db, alert_id: str) -> str:
     db.cases.insert_one({
         "case_id": case_id, "alert_id": alert_id, "scenario_id": alert["scenario_id"], "status": "queued",
         "facts": [], "typology_notes": [], "benign_notes": [], "missing_evidence": [], "retrieved_chunk_ids": [],
-        "case_file": None, "checker": None, "model_ids": {"llm": s.bedrock_llm_id, "embed": s.bedrock_embed_id},
+        "case_file": None, "checker": None, "model_ids": {"llm": s.llm_model_id, "embed": s.embed_model_id},
         "prompt_version": s.prompt_version, "langsmith_run_id": None, "llm_calls": 0,
         "tokens": {"input": 0, "output": 0}, "timings": {}, "error": None, "created_at": _now(), "finished_at": None})
     db.alerts.update_one({"alert_id": alert_id}, {"$set": {"status": "investigating"}})

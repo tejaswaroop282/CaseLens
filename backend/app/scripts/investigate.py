@@ -45,7 +45,7 @@ def main(argv=None) -> int:
     if not ids:
         print("no alerts to investigate"); return 1
     est, rem = estimate(len(ids)), get_chat_ledger().remaining()
-    print(f"alerts={len(ids)} model={s.bedrock_llm_id} prompt={s.prompt_version} "
+    print(f"alerts={len(ids)} model={s.llm_model_id} prompt={s.prompt_version} "
           f"max_calls_per_case={s.max_llm_calls_per_case}")
     print(f"estimated tokens (worst case, one retry each): in={est['input']} out={est['output']} | "
           f"remaining: in={rem['input']} out={rem['output']}")

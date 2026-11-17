@@ -31,7 +31,7 @@ def check_budget(n_new: int, remaining: dict) -> tuple[bool, dict]:
 
 def reusable_case(db, alert_id: str, s) -> dict | None:
     return db.cases.find_one({"alert_id": alert_id, "status": {"$in": list(FINISHED)},
-                              "prompt_version": s.prompt_version, "model_ids.llm": s.bedrock_llm_id},
+                              "prompt_version": s.prompt_version, "model_ids.llm": s.llm_model_id},
                              {"_id": 0}, sort=[("created_at", -1)])
 
 
@@ -44,7 +44,7 @@ def fmt(x, pct=True):
 def results_markdown(split: str, meta: dict, base: dict, res: dict, s, failures: list[str]) -> str:
     a, b, c = res["A"], res["B"], res.get("C")
     lines = [f"# Case-file evaluation — {split} split", "",
-             f"Run {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC · model `{s.bedrock_llm_id}` · prompt `{s.prompt_version}` · "
+             f"Run {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC · model `{s.llm_model_id}` · prompt `{s.prompt_version}` · "
              f"TYPOLOGY_TOP_K {s.typology_top_k} · seed {s.random_seed}",
              f"Scenario `{meta.get('scenario_id')}`: {json.dumps((meta.get('spec') or {}).get('params'))} · "
              f"n = {a['n']} ({a['n_suspicious']} suspicious / {a['n_not_suspicious']} not)", "",
@@ -54,7 +54,7 @@ def results_markdown(split: str, meta: dict, base: dict, res: dict, s, failures:
              f"| B. Code baseline (CV_MAX={base['cv_max']}, REPEAT_MIN={base['repeat_min']}) | {b['n']} | "
              f"{fmt(b['false_clear_rate'])} | {fmt(b['auto_clear_rate'])} | {fmt(b['review_load'])} | — | — | — |"]
     if c:
-        lines.append(f"| C. CaseLens ({s.bedrock_llm_id}, prompt {s.prompt_version}) | {c['n']} | {fmt(c['false_clear_rate'])} | "
+        lines.append(f"| C. CaseLens ({s.llm_model_id}, prompt {s.prompt_version}) | {c['n']} | {fmt(c['false_clear_rate'])} | "
                      f"{fmt(c['auto_clear_rate'])} | {fmt(c['review_load'])} | {fmt(c.get('checker_after_retry_rate'))} | "
                      f"{c.get('avg_latency_s', '—')} s | {c['avg_tokens']['input']}/{c['avg_tokens']['output']} |")
         lines += ["", f"CaseLens detail: checker first-pass {fmt(c.get('checker_first_pass_rate'))}, "
@@ -153,7 +153,7 @@ def main(argv=None) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"case_eval_{a.split}_{datetime.now(timezone.utc):%Y%m%d_%H%M}.md"
     out.write_text(md, encoding="utf-8")
-    db.eval_reports.insert_one({"eval": f"case_{a.split}", "ts": datetime.now(timezone.utc), "model_id": s.bedrock_llm_id,
+    db.eval_reports.insert_one({"eval": f"case_{a.split}", "ts": datetime.now(timezone.utc), "model_id": s.llm_model_id,
                                 "prompt_version": s.prompt_version, "baseline": base, "results": res,
                                 "case_ids": {k: v.get("case_id") for k, v in cases.items()}})
     print("\n" + md + f"\nwritten to {out}")
