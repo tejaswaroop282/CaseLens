@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
+
+from app.auth import User, current_user, require_owner
 from pydantic import BaseModel
 
 from app.api.common import database, jsonable, run_job
@@ -29,32 +31,33 @@ class ApproveBody(BaseModel):
 
 
 @router.post("/parse", status_code=201)
-def parse(body: ParseBody, db=Depends(database)):
+def parse(body: ParseBody, db=Depends(database), user: User = Depends(require_owner)):
     return jsonable(service.create_from_intent(db, body.intent_text))
 
 
 @router.get("")
-def list_(page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), db=Depends(database)):
+def list_(page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), db=Depends(database),
+          user: User = Depends(current_user)):
     return jsonable(service.list_scenarios(db, page, page_size))
 
 
 @router.get("/{scenario_id}")
-def get(scenario_id: str, db=Depends(database)):
+def get(scenario_id: str, db=Depends(database), user: User = Depends(current_user)):
     return jsonable(service.get(db, scenario_id))
 
 
 @router.patch("/{scenario_id}")
-def patch(scenario_id: str, body: PatchBody, db=Depends(database)):
+def patch(scenario_id: str, body: PatchBody, db=Depends(database), user: User = Depends(require_owner)):
     return jsonable(service.patch(db, scenario_id, body.direction, body.params))
 
 
 @router.post("/{scenario_id}/approve")
-def approve(scenario_id: str, body: ApproveBody, db=Depends(database)):
-    return jsonable(service.approve(db, scenario_id, body.approved_by))
+def approve(scenario_id: str, body: ApproveBody | None = None, db=Depends(database), user: User = Depends(require_owner)):
+    return jsonable(service.approve(db, scenario_id, user.name))      # the signed-in owner, not free text
 
 
 @router.post("/{scenario_id}/clone", status_code=201)
-def clone(scenario_id: str, db=Depends(database)):
+def clone(scenario_id: str, db=Depends(database), user: User = Depends(require_owner)):
     return jsonable(service.clone(db, scenario_id))
 
 
@@ -74,7 +77,7 @@ def _start(db, scenario_id: str, body: RunBody) -> str:
 
 
 @router.post("/run-new-data", status_code=202)
-def run_all_on_new_data(background: BackgroundTasks, db=Depends(database)):
+def run_all_on_new_data(background: BackgroundTasks, db=Depends(database), user: User = Depends(require_owner)):
     """After an upload: run every completed scenario on its new, complete windows (D17)."""
     started, skipped = [], []
     for sc in db.scenarios.find({"status": "completed"}, {"scenario_id": 1, "intent_text": 1}):
@@ -89,7 +92,8 @@ def run_all_on_new_data(background: BackgroundTasks, db=Depends(database)):
 
 
 @router.post("/{scenario_id}/run", status_code=202)
-def run(scenario_id: str, background: BackgroundTasks, body: Optional[RunBody] = None, db=Depends(database)):
+def run(scenario_id: str, background: BackgroundTasks, body: Optional[RunBody] = None, db=Depends(database),
+        user: User = Depends(require_owner)):
     service.get(db, scenario_id)                                   # 404 if missing
     run_id = _start(db, scenario_id, body or RunBody())
     background.add_task(run_job, "rule_run", execute_run, db, scenario_id, run_id)
@@ -97,12 +101,13 @@ def run(scenario_id: str, background: BackgroundTasks, body: Optional[RunBody] =
 
 
 @router.get("/{scenario_id}/runs")
-def runs(scenario_id: str, db=Depends(database)):
+def runs(scenario_id: str, db=Depends(database), user: User = Depends(current_user)):
     service.get(db, scenario_id)
     return jsonable({"items": list(db.rule_runs.find({"scenario_id": scenario_id}, {"_id": 0}).sort("started_at", -1))})
 
 
 @router.get("/{scenario_id}/examples")
-def examples(scenario_id: str, k: int = Query(5, ge=1, le=20), db=Depends(database)):
+def examples(scenario_id: str, k: int = Query(5, ge=1, le=20), db=Depends(database),
+             user: User = Depends(current_user)):
     """The only endpoint that returns ground truth (an analysis view for the risk owner)."""
     return jsonable(service.examples(db, scenario_id, k))

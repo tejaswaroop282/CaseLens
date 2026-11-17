@@ -97,6 +97,8 @@ def client(mongo_db):
         {"tx_id": f"t{i}", "ts": O.replace(hour=i), "from_account": "A", "to_account": f"R{i}",
          "payment_format": FORMATS[i % 3]} for i in range(6)])
     app.dependency_overrides[database] = lambda: mongo_db
+    from app.auth import User, current_user
+    app.dependency_overrides[current_user] = lambda: User("tester", "Tester", frozenset({"owner", "analyst"}))
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.clear()

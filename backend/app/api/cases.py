@@ -10,6 +10,8 @@ from typing import Literal, Optional
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
+
+from app.auth import User, current_user, require_analyst
 from pydantic import BaseModel, Field
 
 from app.api.common import database, jsonable, run_job
@@ -45,7 +47,7 @@ def _case_summary(c: Optional[dict]) -> Optional[dict]:
 # ---------------- alerts ----------------
 @router.get("/alerts")
 def list_alerts(scenario_id: Optional[str] = None, status: Optional[str] = None, page: int = Query(1, ge=1),
-                page_size: int = Query(50, ge=1, le=200), db=Depends(database)):
+                page_size: int = Query(50, ge=1, le=200), db=Depends(database), user: User = Depends(current_user)):
     q = {k: v for k, v in {"scenario_id": scenario_id, "status": status}.items() if v}
     total = db.alerts.count_documents(q)
     items = list(db.alerts.find(q, {"_id": 0, "tx_ids": 0}).sort([("distinct_counterparties", -1), ("alert_id", 1)])
@@ -61,7 +63,7 @@ def list_alerts(scenario_id: Optional[str] = None, status: Optional[str] = None,
 
 
 @router.get("/alerts/{alert_id}")
-def get_alert(alert_id: str, db=Depends(database)):
+def get_alert(alert_id: str, db=Depends(database), user: User = Depends(current_user)):
     a = db.alerts.find_one({"alert_id": alert_id}, {"_id": 0})
     if a is None:
         raise NotFound(f"alert {alert_id} not found")
@@ -70,7 +72,8 @@ def get_alert(alert_id: str, db=Depends(database)):
 
 
 @router.post("/alerts/{alert_id}/investigate", status_code=202)
-def investigate(alert_id: str, background: BackgroundTasks, db=Depends(database)):
+def investigate(alert_id: str, background: BackgroundTasks, db=Depends(database),
+                user: User = Depends(require_analyst)):
     case_id = start_investigation(db, alert_id)
     background.add_task(run_job, "investigation", execute_investigation, db, case_id)
     return {"case_id": case_id, "status": "queued"}
@@ -78,7 +81,7 @@ def investigate(alert_id: str, background: BackgroundTasks, db=Depends(database)
 
 # ---------------- cases ----------------
 @router.get("/cases/{case_id}")
-def get_case(case_id: str, db=Depends(database)):
+def get_case(case_id: str, db=Depends(database), user: User = Depends(current_user)):
     c = db.cases.find_one({"case_id": case_id}, {"_id": 0})
     if c is None:
         raise NotFound(f"case {case_id} not found")
@@ -88,7 +91,7 @@ def get_case(case_id: str, db=Depends(database)):
 
 
 @router.get("/chunks/{chunk_id}")
-def get_chunk(chunk_id: str):
+def get_chunk(chunk_id: str, user: User = Depends(current_user)):
     from app.tools import get_chunk as tool_get_chunk
     ch = tool_get_chunk(chunk_id)
     if ch is None:
@@ -99,7 +102,7 @@ def get_chunk(chunk_id: str):
 class DecisionBody(BaseModel):
     decision: Literal["dismiss", "escalate", "need_info"]
     reason: str = Field(min_length=3, max_length=1000)
-    analyst: str = Field(min_length=1, max_length=100)
+    analyst: str = Field(default="", max_length=100)       # ignored: set from the signed-in user
 
 
 def forward_to_case_system(doc: dict) -> dict:
@@ -116,9 +119,10 @@ def forward_to_case_system(doc: dict) -> dict:
 
 
 @router.post("/cases/{case_id}/decision", status_code=201)
-def decide(case_id: str, body: DecisionBody, db=Depends(database)):
-    if not body.reason.strip() or not body.analyst.strip():
-        raise ValidationFailed("reason and analyst are required")
+def decide(case_id: str, body: DecisionBody, db=Depends(database), user: User = Depends(require_analyst)):
+    body.analyst = user.name                     # the signed-in analyst, not free text
+    if not body.reason.strip():
+        raise ValidationFailed("reason is required")
     c = db.cases.find_one({"case_id": case_id})
     if c is None:
         raise NotFound(f"case {case_id} not found")
@@ -139,7 +143,7 @@ def decide(case_id: str, body: DecisionBody, db=Depends(database)):
 
 
 @router.get("/decisions/summary")
-def decision_summary(scenario_id: Optional[str] = None, db=Depends(database)):
+def decision_summary(scenario_id: Optional[str] = None, db=Depends(database), user: User = Depends(current_user)):
     match = {}
     if scenario_id:
         match["alert_id"] = {"$in": db.alerts.distinct("alert_id", {"scenario_id": scenario_id})}
@@ -166,5 +170,5 @@ def mock_receive(body: MockCase, db=Depends(database)):
 
 
 @router.get("/mock-case-system/cases")
-def mock_list(db=Depends(database)):
+def mock_list(db=Depends(database), user: User = Depends(current_user)):
     return jsonable({"items": list(db.mock_case_system.find({}, {"_id": 0}).sort("received_at", -1).limit(200))})

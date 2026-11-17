@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { Direction, ExampleItem, Meta, RuleRun, Scenario } from "../api/types";
-import { useAnalyst } from "../lib/analyst";
 import { directionLabel, fmtDateTime, fmtPct, fmtWindow } from "../lib/format";
 import { Button, Callout, Card, cx, EmptyState, ErrorBox, Icon, Loading, Pill, Spinner, Table } from "./ui";
 
@@ -15,7 +14,6 @@ export function SpecEditor({ scenario, meta }: { scenario: Scenario; meta?: Meta
   const [minCp, setMinCp] = useState(spec.params?.min_counterparties ?? 10);
   const [windowH, setWindowH] = useState(spec.params?.window_hours ?? 24);
   const [formats, setFormats] = useState<string[]>(spec.params?.payment_formats ?? []);
-  const [analyst] = useAnalyst();
   const qc = useQueryClient();
   const nav = useNavigate();
 
@@ -33,7 +31,7 @@ export function SpecEditor({ scenario, meta }: { scenario: Scenario; meta?: Meta
       params: { min_counterparties: minCp, window_hours: windowH, payment_formats: formats.length ? formats : null } }),
     onSuccess: refresh,
   });
-  const approve = useMutation({ mutationFn: () => api.approve(scenario.scenario_id, analyst), onSuccess: refresh });
+  const approve = useMutation({ mutationFn: () => api.approve(scenario.scenario_id), onSuccess: refresh });
   const clone = useMutation({ mutationFn: () => api.clone(scenario.scenario_id),
     onSuccess: (s) => { qc.invalidateQueries({ queryKey: ["scenarios"] }); nav(`/scenarios/${s.scenario_id}`); } });
   const busy = save.isPending || approve.isPending || clone.isPending;
@@ -103,13 +101,12 @@ export function SpecEditor({ scenario, meta }: { scenario: Scenario; meta?: Meta
       <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
         {editable && <Button variant="secondary" onClick={() => save.mutate()} disabled={!dirty || busy} loading={save.isPending}>Save changes</Button>}
         {status === "draft" && spec.direction && (
-          <Button onClick={() => approve.mutate()} disabled={busy || dirty || !analyst.trim() || problems.length > 0} loading={approve.isPending}
-            title={!analyst.trim() ? "Enter your name in the top bar first" : undefined}>
+          <Button onClick={() => approve.mutate()} disabled={busy || dirty || problems.length > 0} loading={approve.isPending}
+            title="Approve as the signed-in risk owner">
             <Icon name="check" />Approve
           </Button>
         )}
         <Button variant="ghost" onClick={() => clone.mutate()} disabled={busy} loading={clone.isPending}><Icon name="copy" />Clone</Button>
-        {status === "draft" && spec.direction && !analyst.trim() && <span className="text-xs text-slate-500">Enter your name in the top bar to approve.</span>}
         {scenario.approved_by && <span className="ml-auto text-xs text-slate-500">Approved by {scenario.approved_by} · {fmtDateTime(scenario.approved_at)}</span>}
       </div>
     </Card>

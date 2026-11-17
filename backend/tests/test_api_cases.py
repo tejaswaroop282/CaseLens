@@ -22,6 +22,8 @@ def api(mongo_db):
     fake = FakeToolChat(replies=[scripted([GOOD])] * 6)
     llm.set_chat_model_factory(lambda *a, **k: fake)
     app.dependency_overrides[database] = lambda: mongo_db
+    from app.auth import User, current_user
+    app.dependency_overrides[current_user] = lambda: User("tester", "Tester", frozenset({"owner", "analyst"}))
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c, mongo_db
     app.dependency_overrides.clear()
@@ -71,7 +73,8 @@ def test_decision_requires_reason_and_valid_state(api):
     cid = investigate(c)
     assert c.post(f"/api/cases/{cid}/decision", json={**body, "reason": "no"}).status_code == 422
     assert c.post(f"/api/cases/{cid}/decision", json={**body, "decision": "approve"}).status_code == 422
-    assert c.post(f"/api/cases/{cid}/decision", json={**body, "analyst": ""}).status_code == 422
+    r = c.post(f"/api/cases/{cid}/decision", json={**body, "analyst": "someone else"})
+    assert r.status_code == 201 and r.json()["analyst"] == "Tester"      # recorded as the signed-in user (D19)
 
 
 @pytest.mark.integration
@@ -94,7 +97,7 @@ def test_decision_is_append_only_and_updates_statuses(api, monkeypatch):
 def test_decision_forwarded_to_mock_system_and_failure_does_not_block(api, monkeypatch):
     c, db = api
     import httpx
-    monkeypatch.setattr(httpx, "post", lambda url, json, timeout: c.post(url.split("8000", 1)[1], json=json))
+    monkeypatch.setattr(httpx, "post", lambda url, json, timeout: c.post("/api/" + url.split("/api/", 1)[1], json=json))
     cid = investigate(c)
     r = c.post(f"/api/cases/{cid}/decision", json={"decision": "dismiss", "reason": "Payroll pattern.", "analyst": "t"})
     ack = r.json()["mock_case_system"]

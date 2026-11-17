@@ -13,9 +13,10 @@ export function fmtTime(iso: string | null | undefined): string {
 export function fmtWindow(start: string, end: string): string {
   const s = new Date(start), e = new Date(end);
   const sameDay = s.toISOString().slice(0, 10) === new Date(e.getTime() - 1).toISOString().slice(0, 10);
-  return sameDay
-    ? `${s.toISOString().slice(0, 10)} · ${fmtTime(start)}–${fmtTime(end)} UTC`
-    : `${fmtDateTime(start)} → ${fmtDateTime(end)}`;
+  const midnight = (d: Date) => d.toISOString().slice(11, 16) === "00:00";
+  if (sameDay) return `${s.toISOString().slice(0, 10)} · ${fmtTime(start)}–${fmtTime(end)} UTC`;
+  if (midnight(s) && midnight(e)) return `${s.toISOString().slice(0, 10)} → ${e.toISOString().slice(0, 10)}`;   // whole days
+  return `${fmtDateTime(start)} → ${fmtDateTime(end)}`;
 }
 
 export function fmtPct(x: number | null | undefined, digits = 1): string {

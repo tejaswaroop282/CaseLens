@@ -8,6 +8,8 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 
+from app.auth import User, current_user, require_owner
+
 from app.api.common import database, jsonable, run_job
 from app.config import get_settings
 from app.errors import InvalidState, NotFound, ValidationFailed
@@ -76,7 +78,7 @@ def _append_job(db, upload_id: str) -> None:
 
 @router.post("", status_code=202)
 def create(background: BackgroundTasks, file: UploadFile = File(...), patterns: Optional[UploadFile] = File(None),
-           db=Depends(database)):
+           db=Depends(database), user: User = Depends(require_owner)):
     if db.pipeline_meta.find_one({"_id": "meta"}) is None:
         raise InvalidState("load the base data first (python -m pipeline.run --step all)", code="data_not_loaded")
     name = (file.filename or "upload.csv")
@@ -98,12 +100,12 @@ def create(background: BackgroundTasks, file: UploadFile = File(...), patterns: 
 
 
 @router.get("")
-def list_(db=Depends(database)):
+def list_(db=Depends(database), user: User = Depends(current_user)):
     return jsonable({"items": list(db.uploads.find({}, {"_id": 0}).sort("created_at", -1).limit(50))})
 
 
 @router.get("/{upload_id}")
-def get(upload_id: str, db=Depends(database)):
+def get(upload_id: str, db=Depends(database), user: User = Depends(current_user)):
     u = db.uploads.find_one({"upload_id": upload_id}, {"_id": 0})
     if u is None:
         raise NotFound(f"upload {upload_id} not found")
@@ -111,7 +113,7 @@ def get(upload_id: str, db=Depends(database)):
 
 
 @router.post("/{upload_id}/append", status_code=202)
-def append(upload_id: str, background: BackgroundTasks, db=Depends(database)):
+def append(upload_id: str, background: BackgroundTasks, db=Depends(database), user: User = Depends(require_owner)):
     res = db.uploads.find_one_and_update({"upload_id": upload_id, "status": "validated"},
                                          {"$set": {"status": "appending"}})
     if res is None:

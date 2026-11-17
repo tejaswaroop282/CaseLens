@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api import auth as auth_api
 from app.api import cases, health, scenarios, uploads
 from app.budget import TokenBudgetExceeded
 from app.config import get_settings
@@ -98,6 +99,7 @@ async def internal_error(request: Request, exc: Exception):
     return JSONResponse(error_body("internal_error", "internal error"), status_code=500)
 
 
+app.include_router(auth_api.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
 app.include_router(scenarios.router, prefix="/api")
 app.include_router(cases.router, prefix="/api")

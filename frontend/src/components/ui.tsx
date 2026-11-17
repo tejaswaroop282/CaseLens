@@ -155,7 +155,7 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
 }
 
 export type IconName = "studio" | "queue" | "alert" | "info" | "check" | "x" | "inbox" | "spark" | "doc" | "fact"
-  | "arrow-left" | "external" | "shield" | "copy" | "play" | "user" | "upload" | "database";
+  | "arrow-left" | "external" | "shield" | "copy" | "play" | "user" | "upload" | "database" | "home" | "logout";
 
 const paths: Record<IconName, ReactNode> = {
   studio: <><path d="M4 5h16M4 12h10M4 19h7" /><circle cx="18" cy="16" r="3" /></>,
@@ -175,6 +175,8 @@ const paths: Record<IconName, ReactNode> = {
   play: <path d="M7 5v14l11-7z" />,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>,
   upload: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
+  home: <><path d="M3 11 12 4l9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
+  logout: <><path d="M15 4h4v16h-4" /><path d="M10 8l-4 4 4 4M6 12h10" /></>,
   database: <><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" /><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>,
 };
 

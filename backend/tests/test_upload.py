@@ -118,6 +118,8 @@ def test_api_upload_flow_and_range_run(mongo_db, tmp_path):
     from app.main import app
     load_base(mongo_db, tmp_path)
     app.dependency_overrides[database] = lambda: mongo_db
+    from app.auth import User, current_user
+    app.dependency_overrides[current_user] = lambda: User("tester", "Tester", frozenset({"owner", "analyst"}))
     try:
         with TestClient(app, raise_server_exceptions=False) as c:
             csv = (HEADER + "\n" + "\n".join(day_rows(1) + [line(O + timedelta(hours=40), to="8000END00")]) + "\n").encode()

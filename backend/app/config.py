@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    # Sign-in (D19): HMAC secret for session tokens; empty = random per process
+    auth_secret: Optional[str] = None
+    auth_token_hours: int = 8
+
     # LangSmith
     langsmith_tracing: bool = True
     langsmith_api_key: Optional[str] = None
@@ -88,7 +92,7 @@ class Settings(BaseSettings):
     id_pattern: str = r"\b[0-9A-F]{8,12}\b"
 
     @field_validator("aws_profile", "s3_bucket", "bedrock_llm_id", "langsmith_api_key", "max_rows",
-                     "llm_extra_request_fields_json", "aws_region", "gemini_api_key", "gemini_thinking_budget",
+                     "llm_extra_request_fields_json", "aws_region", "gemini_api_key", "gemini_thinking_budget", "auth_secret",
                      mode="before")
     @classmethod
     def _empty_is_none(cls, v):

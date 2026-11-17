@@ -22,12 +22,25 @@ def _now() -> datetime:
 
 
 # ---------------- data context ----------------
+_formats_cache: dict = {}
+
+
+def payment_formats(db, meta: dict) -> list[str]:
+    """Distinct payment formats in staging. A full scan of millions of rows takes seconds, so the result is
+    cached until the data changes (a new staging run or another appended upload)."""
+    key = (db.name, meta.get("staging_run_id"), meta.get("built_at"), len(meta.get("uploads") or []))
+    if key not in _formats_cache:
+        _formats_cache.clear()
+        _formats_cache[key] = sorted(db.stg_transactions.distinct("payment_format"))
+    return _formats_cache[key]
+
+
 def data_context(db) -> tuple[int, list[str]]:
     """(slice_hours, valid payment formats). Requires the pipeline to have run."""
     meta = db.pipeline_meta.find_one({"_id": "meta"})
     if meta is None:
         raise InvalidState("no data loaded yet; run the pipeline first", code="data_not_loaded")
-    return int(meta["slice_hours"]), sorted(db.stg_transactions.distinct("payment_format"))
+    return int(meta["slice_hours"]), payment_formats(db, meta)
 
 
 # ---------------- validation ----------------
@@ -79,6 +92,10 @@ def list_scenarios(db, page: int, page_size: int) -> dict:
     total = db.scenarios.count_documents({})
     items = list(db.scenarios.find({}, {"_id": 0}).sort("created_at", -1)
                  .skip((page - 1) * page_size).limit(page_size))
+    for sc in items:                     # latest run summary for the owner's overview (one query per scenario)
+        run = db.rule_runs.find_one({"scenario_id": sc["scenario_id"]}, {"_id": 0}, sort=[("started_at", -1)])
+        sc["latest_run"] = ({k: run.get(k) for k in ("run_id", "status", "error", "metrics", "started_at",
+                                                     "finished_at", "mode", "range_start", "range_end")} if run else None)
     return {"items": items, "page": page, "page_size": page_size, "total": total}
 
 

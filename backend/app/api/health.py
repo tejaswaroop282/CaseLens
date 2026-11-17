@@ -31,9 +31,10 @@ def health() -> dict:
 def meta() -> dict:
     """What the UI needs to build valid scenarios: slice length and the payment formats in the data."""
     from app.api.common import jsonable
+    from app.scenario.service import payment_formats
     d = db.get_db()
     m = d.pipeline_meta.find_one({"_id": "meta"}, {"_id": 0}) or {}
     return jsonable({"data_loaded": bool(m), "slice_hours": m.get("slice_hours"), "data_origin": m.get("data_origin"),
                      "slice_end": m.get("slice_end"), "dataset": m.get("dataset"),
-                     "payment_formats": sorted(d.stg_transactions.distinct("payment_format")) if m else [],
+                     "payment_formats": payment_formats(d, m) if m else [],
                      "model_id": get_settings().llm_model_id, "prompt_version": get_settings().prompt_version})

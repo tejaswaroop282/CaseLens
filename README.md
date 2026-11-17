@@ -39,7 +39,8 @@ The quality goal is a **false-clear rate of zero**: a really suspicious alert mu
 - **The checker verifies support, not judgement.** It confirms that each number and id in a claim appears in the cited
   facts. It cannot tell whether a claim is reasonable, and numbers written as words are not checked (the prompts ask
   for digits).
-- **No compliance claims.** No authentication, multi-user support or deployment.
+- **Demo sign-in, not production identity.** Two predefined accounts (risk owner, analyst) with server-side role checks;
+  no user management, password reset or deployment. **No compliance claims.**
 
 ## 3. Architecture and flow
 

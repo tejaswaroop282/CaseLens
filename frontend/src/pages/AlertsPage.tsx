@@ -61,7 +61,7 @@ export default function AlertsPage() {
         }>
         {q.isLoading ? <Loading /> : q.isError ? <div className="p-5"><ErrorBox error={q.error} /></div>
           : !q.data?.items.length ? (
-            <EmptyState icon="queue" title="No alerts here">Approve and run a scenario in Scenario Studio to create alerts.</EmptyState>
+            <EmptyState icon="queue" title="No alerts here">Alerts appear when the risk owner runs an approved rule.</EmptyState>
           ) : (
             <>
               <Table head={["Account", "Pattern", "Window", "Counterparties", "Transactions", "Status", "Case", ""]}>

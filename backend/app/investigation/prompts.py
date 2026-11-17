@@ -43,8 +43,14 @@ Rules:
 3. Do not mention account ids or names unless they appear in the cited facts.
 4. At most 6 claims, one sentence each.
 5. verdict:
-   - likely_legitimate only if at least one harmless explanation is supported and nothing in the
-     facts points the other way.
+   - likely_legitimate only if at least one harmless explanation is supported AND none of these red
+     flags is present (check each one against the facts):
+       a. irregular amounts: F9 cv above 1.0;
+       b. any Cash or Bitcoin in F5;
+       c. F7 repeat counterparty share below 0.5;
+       d. F1 transaction count more than double the F6 prior_tx_count;
+       e. F6 history_available is false.
+     If any red flag is present, the verdict cannot be likely_legitimate.
    - likely_suspicious only if several facts point to the pattern (for example many distinct
      counterparties, no repeat counterparties, irregular amounts) and no harmless explanation is supported.
    - needs_review in every other case. When unsure, choose needs_review.

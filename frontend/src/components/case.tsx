@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api/client";
 import type { Case, Claim, Decision, Fact } from "../api/types";
-import { useAnalyst } from "../lib/analyst";
+import { useAuth } from "../lib/auth";
 import { decisionLabel, fmtDateTime, fmtNum, parseChunkId } from "../lib/format";
 import { Button, Callout, cx, ErrorBox, Icon, Loading, Pill } from "./ui";
 
@@ -161,12 +161,12 @@ const CHOICES: { d: Decision; label: string; variant: "success" | "danger" | "wa
 ];
 
 export function DecisionBar({ c }: { c: Case }) {
-  const [analyst, setAnalyst] = useAnalyst();
+  const { user } = useAuth();
   const [reason, setReason] = useState("");
   const [choice, setChoice] = useState<Decision | null>(null);
   const qc = useQueryClient();
   const decide = useMutation({
-    mutationFn: (d: Decision) => api.decide(c.case_id, { decision: d, reason: reason.trim(), analyst: analyst.trim() }),
+    mutationFn: (d: Decision) => api.decide(c.case_id, { decision: d, reason: reason.trim() }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["case", c.case_id] }); qc.invalidateQueries({ queryKey: ["alerts"] });
       qc.invalidateQueries({ queryKey: ["decision-counts"] }); },
   });
@@ -189,7 +189,7 @@ export function DecisionBar({ c }: { c: Case }) {
     );
   }
   const canDecide = ["checked", "needs_human_rewrite", "failed"].includes(c.status);
-  const ready = canDecide && reason.trim().length >= 3 && analyst.trim().length > 0;
+  const ready = canDecide && reason.trim().length >= 3;
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60">
       <div className="flex flex-wrap items-start gap-4">
@@ -198,10 +198,7 @@ export function DecisionBar({ c }: { c: Case }) {
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={1000} disabled={!canDecide}
             placeholder="Why? e.g. Regular payroll-style payments to repeat counterparties."
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:bg-slate-50" />
-          {!analyst.trim() && (
-            <input value={analyst} onChange={(e) => setAnalyst(e.target.value)} placeholder="Your name"
-              className="mt-2 w-60 rounded-lg border border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-600 focus:outline-none" />
-          )}
+          <p className="mt-1.5 text-xs text-slate-500">Recorded as <span className="font-medium text-slate-700">{user?.name}</span>. Decisions are final (append-only).</p>
         </div>
         <div className="flex flex-col gap-2 pt-6">
           <div className="flex gap-2">
