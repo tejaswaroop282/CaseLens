@@ -96,8 +96,8 @@ function AlertRow({ alert: a }: { alert: Alert }) {
       <td className="px-4 py-3 font-mono text-xs text-slate-700">{a.account_id}</td>
       <td className="px-4 py-3"><Pill tone="blue">{directionLabel(a.direction)}</Pill></td>
       <td className="whitespace-nowrap px-4 py-3 text-slate-600">{fmtWindow(a.window_start, a.window_end)}</td>
-      <td className="px-4 py-3 font-medium tabular-nums">{a.distinct_counterparties}</td>
-      <td className="px-4 py-3 tabular-nums text-slate-600">{a.tx_count}</td>
+      <td className="px-4 py-3 font-medium tabular-nums">{a.distinct_counterparties.toLocaleString("en-US")}</td>
+      <td className="px-4 py-3 tabular-nums text-slate-600">{a.tx_count.toLocaleString("en-US")}</td>
       <td className="px-4 py-3"><StatusPill status={a.status} /></td>
       <td className="px-4 py-3">
         {c ? <div className="flex flex-col gap-1"><StatusPill status={c.status} />
@@ -107,7 +107,7 @@ function AlertRow({ alert: a }: { alert: Alert }) {
       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
         {inv.isError && <span className="mr-2 text-xs text-rose-600">{(inv.error as Error).message}</span>}
         {a.status !== "reviewed" && !active && (
-          <Button variant={c ? "secondary" : "primary"} loading={inv.isPending} onClick={() => inv.mutate()}>
+          <Button variant={c ? "secondary" : "primary"} loading={inv.isPending} onClick={() => inv.mutate()} className="whitespace-nowrap">
             <Icon name="spark" />{c ? "Re-investigate" : "Investigate"}
           </Button>
         )}

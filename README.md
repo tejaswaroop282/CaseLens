@@ -1,233 +1,244 @@
 # CaseLens
 
-A small financial-crime compliance prototype built around **one suspicious pattern**: the **fan pattern** — one account
-paying many different accounts (fan-out) or receiving from many different accounts (fan-in) within a time window.
+**An AI-assisted review tool for one money-laundering pattern, built end to end on real (simulated) bank data.**
 
-> **Prototype on simulated public data. Not a compliance system.** The AI only drafts; a human decides.
+A risk owner describes a worry in plain English; an LLM turns it into a rule; the rule is measured on labeled data
+before anyone relies on it. An analyst opens an alert; code collects the facts, AI agents draft a case file with cited
+evidence and regulator guidance, a code checker rejects any unsupported number, and the analyst decides.
 
-![Architecture](architecture.png)
+> **Prototype on simulated public data (IBM AML HI-Small). Not a compliance system.** The AI drafts; a human decides.
 
-## 1. What and why
+![Sign-in](docs/screenshots/01_sign_in.png)
 
-Banks run rules that raise money-laundering alerts. Two things hurt:
+## Highlights
+
+- **Two role-based workspaces** with server-enforced permissions: a risk owner designs and runs rules, an analyst
+  investigates and decides.
+- **Worry → rule in seconds:** 20 of 20 test worries parsed correctly, including 8 of 8 unsupported ones rejected.
+- **Measured before trusted:** every rule run reports precision and pattern recall on 4.2 M labeled transactions.
+- **Grounded case files:** the LLM only fills schemas; every number comes from a code-built fact sheet, every claim
+  cites fact ids or regulator excerpts (RAG over FinCEN, FFIEC and FATF documents), and a plain-code checker verifies them.
+- **Safety first:** 0 of 15 truly suspicious alerts were marked "likely legitimate" in the held-out evaluation.
+- **Cost control in code:** a persistent token ledger with hard budgets, call caps per case, dry-run estimates and rate
+  limits. Total AI spend for the whole project: **$0** (Gemini free tier).
+- **New data by upload:** all-or-nothing appends with de-duplication; approved rules run on the new windows only.
+- **127 automated tests**, including label-leakage tests that prove ground truth never reaches the AI.
+
+## Screenshots
+
+| Risk owner | Analyst |
+|---|---|
+| ![Owner overview](docs/screenshots/02_owner_overview.png) | ![Analyst overview](docs/screenshots/06_analyst_overview.png) |
+| **Overview:** drafts to approve, rule performance | **Overview:** cases waiting for a decision |
+| ![Scenario Studio](docs/screenshots/03_scenario_studio.png) | ![Alert queue](docs/screenshots/07_alert_queue.png) |
+| **Scenario Studio:** describe a worry, the AI drafts a rule | **Alert queue:** investigate an alert |
+| ![Scenario results](docs/screenshots/04_scenario_results.png) | ![Case file](docs/screenshots/08_case_file.png) |
+| **Rule results:** precision, recall, real examples | **Case file:** fact sheet, cited claims, decision bar |
+| ![Data upload](docs/screenshots/05_data_upload.png) | |
+| **Data:** upload, validate, append new transactions | |
+
+A step-by-step demo script is in [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
+
+## The problem
+
+Banks run rules that raise money-laundering alerts, and two things hurt:
 
 1. **Most alerts are false alarms**, yet an analyst must collect facts and write a case file for each one.
-2. **Improving a rule is slow**, because the risk owner, the analyst and the model team keep re-explaining it to each other.
+2. **Improving a rule is slow**, because the risk owner, the analysts and the model team keep re-explaining it to
+   each other, and nobody measures a rule before it goes live.
 
-CaseLens tries two small answers:
+CaseLens takes one well-defined pattern, the **fan pattern** (one account paying many different accounts, *fan-out*,
+or receiving from many, *fan-in*, within a time window), and builds both halves of the workflow around it.
 
-- **Scenario Studio** — a risk owner writes a worry in plain English. An LLM turns it into a closed, validated
-  `ScenarioSpec` (direction plus two numbers) or rejects it as unsupported. A human approves it; the rule runs on
-  labeled data and shows precision, pattern recall, and real hits and look-alikes.
-- **Investigation agents** — for one alert, code builds a fact sheet; two helpers add regulator guidance and possible
-  harmless explanations; a drafter writes a case file in which every claim cites fact ids or document excerpts; a
-  plain-code checker rejects unsupported numbers and ids (one retry); a human reviews and decides.
-
-The quality goal is a **false-clear rate of zero**: a really suspicious alert must never be marked likely legitimate.
-
-## 2. Honest scope
-
-- **Data:** IBM's *HI-Small* AML dataset, which IBM **simulated** from a virtual world, and only the first
-  `SLICE_HOURS` of it. Three public regulator documents for context. No real customer data.
-- **One pattern only.** Worries about cash structuring, cycles, countries, risk scores or single large payments are
-  rejected as unsupported on purpose.
-- **Fixed time windows** counted from the start of the data (not rolling windows), so a burst that straddles a window
-  boundary can be split in two. A window is evaluated only once it is complete, so the newest partial window waits
-  for the next upload.
-- **New data arrives by upload, not a live feed** (M7). Upload a CSV in the IBM transaction format on the Data page;
-  rows already loaded are skipped, and approved scenarios can then run on the new windows only.
-- **The checker verifies support, not judgement.** It confirms that each number and id in a claim appears in the cited
-  facts. It cannot tell whether a claim is reasonable, and numbers written as words are not checked (the prompts ask
-  for digits).
-- **Demo sign-in, not production identity.** Two predefined accounts (risk owner, analyst) with server-side role checks;
-  no user management, password reset or deployment. **No compliance claims.**
-
-## 3. Architecture and flow
+## How it works
 
 ```
-IBM HI-Small (2 files) ─┐                         ┌─ Scenario Studio ── fan rule (Mongo aggregation) ── metrics
+IBM HI-Small (2 files) ─┐                          ┌─ Scenario Studio ── fan rule (Mongo aggregation) ── metrics
 Regulator PDFs (3) ─────┴─► S3 raw/ ─► pipeline ─► MongoDB stg_* ─┤
-                                         └─► Chroma (embedded)     └─ Investigation graph (LangGraph)
+                                          └─► Chroma (embedded)    └─ Investigation graph (LangGraph)
                                                                        build_facts (code)
-                                                                       ├─ typology_agent (LLM + Chroma)
+                                                                       ├─ typology_agent (LLM + RAG)
                                                                        └─ benign_agent (LLM)
                                                                        drafter (LLM) → evidence_checker (code)
                                                                        → one retry → human decision (React)
 ```
 
-- Only **MongoDB runs in Docker**; FastAPI, the pipeline and React run on Windows. Chroma is embedded (`data/chroma`).
-- **Model provider behind one switch** (`LLM_PROVIDER`, decision D18). Measured with **Google Gemini 3.5 Flash-Lite** and
-  **Gemini embeddings** (free API tier). **Amazon Bedrock** (Qwen3 Next 80B plus Titan Text Embeddings v2 in `ap-south-1`)
-  is implemented as the production path but not yet measured: the AWS account's Bedrock access was still pending.
-- AWS: **S3 and IAM** for raw data; Bedrock when enabled.
-- **LangSmith** is the only tracing and evaluation tool; everything also works with `LANGSMITH_TRACING=false`.
+![Architecture](architecture.png)
 
-## 4. How to run (Windows, PowerShell)
+**Scenario Studio (risk owner).** A worry such as *"accounts receiving from 8 or more different accounts within 3
+days"* goes to the LLM, which can only fill a closed `ScenarioSpec` schema (direction plus two numbers) or reject the
+worry as unsupported. The owner reviews and approves; the rule runs as a MongoDB aggregation over fixed windows and
+reports alert count, precision, pattern recall, real hits and harmless look-alikes. Rules can be re-run on a date range
+or on newly uploaded data only.
 
-Prerequisites: Git, Python 3.12, Node.js LTS, AWS CLI v2, Docker Desktop (WSL2). Details in `PROJECT_REPORT.md` §7.
+**Investigation (analyst).** For one alert, code builds a fact sheet (F0–F10: counts, amounts, timing, history,
+counterparty and bank diversity, amount regularity). Two agents run in parallel: one retrieves matching red flags from
+the regulator PDFs, the other proposes harmless explanations supported by facts. A drafter writes the case file; a
+plain-code checker verifies every id and number against the cited facts (one retry). The analyst records a decision —
+dismiss, escalate or need more info — which is append-only and forwarded to a mock downstream case system.
 
-```powershell
-git clone <repo> caseLens; cd caseLens
-Copy-Item .env.example .env          # fill in GEMINI_API_KEY, AWS_PROFILE, S3_BUCKET, LANGSMITH_API_KEY
-& "$env:LocalAppData\Programs\Python\Python312\python.exe" -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install --no-cache-dir -e "backend[dev]"
-docker compose up -d mongo
+## Results
 
-cd backend
-pytest -q                            # unit tests (no network)
-pytest -q -m integration             # needs the MongoDB container
-python -m app.scripts.smoke          # one chat reply, one structured output, one embedding (a few hundred tokens)
+Measured on the 168-hour slice of IBM HI-Small (3.7 M transactions; 24 fan-out and 16 fan-in labeled patterns) with
+Gemini 3.5 Flash-Lite. Full tables: [docs/results/](docs/results/). Each configuration was run once.
 
-# data (download the two HI-Small files into data\ibm and the PDFs listed in docs\SOURCES.yaml into data\reg_docs)
-python -m pipeline.slice_advice      # choose SLICE_HOURS
-python -m pipeline.run --step all    # raw -> staging -> labels -> docs -> dq
-python -m pipeline.disk_report
+**Rules on real data**
 
-uvicorn app.main:app --port 8000     # API (set CORS_ORIGINS / API_BASE_URL in .env if you change ports)
-```
-
-```powershell
-cd frontend
-npm install
-npm run dev                          # http://localhost:5173 (set VITE_API_BASE if the API is not on :8000)
-```
-
-### Signing in (D19)
-
-Open the web app and pick a demo account on the sign-in page. Each role has its own workspace, and the server enforces it:
-
-| Role | Account | Workspace |
-|---|---|---|
-| Risk owner | `meera` / `owner123` | Overview, Scenario Studio (write, approve, run rules), Upload transactions |
-| Analyst | `ravi` / `analyst123` | Overview (cases ready for a decision), Alert queue, case files, decisions |
-
-Approvals and decisions are recorded under the signed-in user. These are demo credentials for a local prototype.
-
-Command-line tools (all AI spending is estimated first and refused if over budget):
-
-| Command | Purpose |
-|---|---|
-| `python -m app.eval.run_scenario_eval --dry-run` / `--yes` | Eval set 1: 20 worries |
-| `python -m app.scripts.investigate --scenario-id <id> --n 5` | Investigate a few alerts from the command line |
-| `python -m app.scripts.make_dev_split --scenario-id <id>` | Build the 10 dev + 30 eval alerts |
-| `python -m app.eval.run_case_eval --split dev --tune` | Prompt work and baseline tuning (dev only) |
-| `python -m app.eval.run_case_eval --split eval --reuse` | Final comparison of systems A, B, C |
-| `python -m app.scripts.estimate_cost --price-in X --price-out Y` | Spend so far from the token ledger |
-
-### Adding new data (M7)
-
-1. **Data** page → drop a CSV (IBM transaction format, optional IBM patterns file) → **Upload and check**. The
-   validation report shows rows read, rows to add, rows already loaded, and rejected rows with reasons. Nothing is
-   saved yet.
-2. **Add rows to the data** → rows are appended all-or-nothing (refused up front if MongoDB would pass `MONGO_MAX_GB`;
-   rolled back on any failure). The original file goes to S3 `raw/uploads/` when a bucket is set.
-3. **Run approved scenarios on new data** → new alerts appear in the Alert queue; old alerts are never duplicated.
-4. On a scenario page, **Run again → Date range** lets a rule designed on one period be checked on another
-   (for example, design on day 1, validate on day 2) and compared in the run history.
-
-An honest demo with no invented data: load day 1 of HI-Small with the pipeline, then upload later days of the same
-file as "new" data.
-
-## 5. Data sources and licenses
-
-See `docs/SOURCES.md` (IBM AML: CDLA-Sharing-1.0; regulator documents under their publishers' terms) and
-`docs/DATA_NOTES.md` for what was verified on the real files.
-
-## 6. Design decisions
-
-- **Code collects the facts; the LLM only fills schemas.** Every number in a case file comes from the fact sheet
-  (F0–F10). The LLM never writes queries or code and never sees raw transaction rows.
-- **A checker instead of trust.** A plain-code checker verifies every claim's ids and numbers; one retry, then the case
-  goes to a human as "write it yourself".
-- **Labels are hidden from the AI.** Ground truth lives only in `stg_labels`, `stg_pattern_blocks` and `alert_truth`.
-  The tools have an allow-list that excludes them, responses strip truth keys, and leakage tests check tool outputs,
-  every prompt, and every case document.
-- **The LLM for two jobs only:** filling a scenario spec and writing case files. One small model, temperature 0,
-  capped output, a per-case call limit and a **hard token budget in code** that persists across restarts and refuses
-  calls when used up.
-- **A human decides.** Decisions are `dismiss`, `escalate` or `need_info`, append-only, with a required reason, and
-  are forwarded to a mock downstream case system.
-
-## 7. Results
-
-All numbers below were measured on 2026-11-17 on the 168-hour HI-Small slice (3,731,672 transactions, 24 fan-out and
-16 fan-in labeled blocks) with **Gemini 3.5 Flash-Lite** (decision D18). Raw tables: `docs/results/`. The model ignores
-`temperature`, so a repeated run can differ slightly; each configuration was run once.
-
-### Scenario Studio on real data
-
-| Rule (approved by a human) | Alerts | Precision | Pattern recall |
+| Rule (approved by a human) | Alerts | Precision | Patterns caught |
 |---|---|---|---|
 | Fan-in, ≥ 20 counterparties in 12 h | 680 | 8.1 % | **0 / 16** |
 | Fan-in, ≥ 8 counterparties in 72 h | 2,381 | 7.7 % | 4 / 11 |
 | Fan-out, ≥ 10 counterparties in 72 h | 2,815 | 2.1 % | 4 / 19 |
 
-Precision counts an alert as suspicious if any of its transactions is labeled laundering. Recall counts labeled fan
-blocks that lie fully inside the evaluated windows (only complete windows are evaluated, so a 72-hour rule covers
-144 of the 168 hours). IBM's fan patterns are "low and slow" (median 7–8 transactions over about 3–4 days,
-`docs/DATA_NOTES.md`), so a plausible short-window rule caught none of them; longer windows catch some at the cost of
-many false alarms.
+IBM's fan patterns are "low and slow" (median 7–8 payments spread over 3–4 days), so a plausible short-window rule
+caught none of them. That is exactly what the Studio is for: finding out before a rule goes live.
 
-### Eval set 1: worry → rule (20 worries)
+**Worry → rule (20 worries):** 20/20 valid schemas, 20/20 correct direction, 12/12 numbers in range, 8/8 unsupported
+worries rejected, 7.8 s each.
 
-| Schema valid | Direction correct | Numbers in expected range | Unsupported worries rejected | Mean latency | Tokens |
-|---|---|---|---|---|---|
-| 20 / 20 | 20 / 20 | 12 / 12 | 8 / 8 | 7.8 s | 7,283 in / 2,241 out |
+**Case files (30 held-out alerts, 15 suspicious / 15 not)**
 
-### Eval set 2: case files (30 held-out fan-out alerts, 15 suspicious / 15 not)
+| System | False-clear | Auto-clear | Review load | Checker passed | Latency | Tokens in/out |
+|---|---|---|---|---|---|---|
+| A. Rule only | 0 % | 0 % | 100 % | — | — | — |
+| B. Code baseline (tuned on dev) | 0 % | 0 % | 100 % | — | — | — |
+| C. CaseLens | **0 %** | 0 % | 100 % | 96.7 % | 26 s | 3,071 / 846 |
 
-| System | n | False-clear | Auto-clear | Review load | Checker after-retry | Avg latency | Avg tokens (in/out) |
-|---|---|---|---|---|---|---|---|
-| A. Rule only | 30 | 0.0 % | 0.0 % | 100.0 % | — | — | — |
-| B. Code baseline (CV_MAX=0.01, REPEAT_MIN=0.9, tuned on dev) | 30 | 0.0 % | 0.0 % | 100.0 % | — | — | — |
-| C. CaseLens (Gemini 3.5 Flash-Lite, prompt v2) | 30 | **0.0 %** | 0.0 % | 100.0 % | 96.7 % | 26.0 s | 3,071 / 846 |
+**Honest reading:** CaseLens met the safety goal and every claim was supported by cited facts (citation validity
+100 %), but it **did not reduce the review load** — it sent every alert to a human, as did the code baseline. On this
+data its value is a drafted, evidence-checked case file in about 26 seconds, not automatic triage. Thirty alerts give a
+coarse estimate.
 
-CaseLens detail: checker first-pass 93.3 %, citation validity 100 %, 1 case failed (see below).
+**Failures that changed the system**
 
-**What this shows, honestly.** CaseLens met the safety goal (no suspicious alert marked likely legitimate) and every
-claim it made was supported by cited facts, but it **did not reduce the review load**: it sent every alert to a human,
-as did the tuned code baseline. On this data the value is a drafted, evidence-checked case file in about 26 seconds,
-not automatic triage. With 30 alerts the false-clear estimate is coarse (0 of 15 suspicious).
+1. **A false clear in development.** Prompt v1 called an alert with 650 cash payments and wildly irregular amounts
+   "likely legitimate". Prompt v2 lists five concrete red flags tied to fact ids; any one forbids a clear. The dev
+   false-clear rate went from 1/5 to 0/5 before the final evaluation was run once.
+2. **A sensible-sounding rule caught nothing** (above), because fixed short windows cannot see slow patterns.
+3. **Provider overload.** One evaluation case failed on Google's `503 high demand` and counted as "needs review".
+4. **An upload left half a file behind.** The database size guard stopped a 482k-row append midway. Appends are now
+   all-or-nothing, with a conservative size check and rollback (test added).
 
-### New data by upload (M7)
+More detail in [docs/DATA_NOTES.md](docs/DATA_NOTES.md) and [PROJECT_REPORT.md](PROJECT_REPORT.md).
 
-Day 8 of the same IBM file (482,773 real transactions, 539 labeled) was uploaded on the Data page as "new data":
-0 rows rejected, all appended, original copied to S3, labels kept in the evaluation-only collections. With
-**Run approved scenarios on new data**, the 12-hour fan-in rule ran on day 8 only and raised **99 new alerts** (5.1 %
-precision) with **0 duplicates** of earlier alerts; the two 72-hour rules were skipped because the window that starts
-on day 7 is not complete until hour 216. Uploading the same file again found 482,773 rows already loaded and 0 to
-add. For this demo `MONGO_MAX_GB` was raised from 1 to 2 (with the user's approval); total project disk use after the
-upload is 1.39 GB of 10 GB.
+## Tech stack
 
-### Failures and what changed
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS 4, TanStack Query, React Router |
+| API | FastAPI, Pydantic v2, pydantic-settings, structlog |
+| AI orchestration | LangChain (structured output), LangGraph (fixed graph with a parallel branch), LangSmith (tracing, evaluation) |
+| Models | Google Gemini 3.5 Flash-Lite and Gemini embeddings now; Amazon Bedrock (Qwen3 Next 80B, Titan Embeddings v2) behind the same switch |
+| Data | MongoDB 7 (Docker), ChromaDB (embedded), pandas pipeline |
+| Cloud | AWS S3 (raw files) and IAM (least-privilege user) |
+| Tests | pytest (unit tests with fake models; integration tests against MongoDB), TypeScript checks |
 
-1. **False clear on the dev split (prompt v1).** Alert `3bb81743e3af4173`: 3,263 payments to 694 accounts in 72 h,
-   650 in cash, amount variation 13× the mean. The model called it "likely legitimate" because every counterparty
-   was a repeat one, although the prompt said to clear only if "nothing points the other way". Prompt v2 lists five
-   concrete red flags tied to fact ids (irregular amounts, cash or Bitcoin, few repeat counterparties, a volume spike
-   against history, no history); any one forbids a clear. Dev false-clear went from 1 of 5 to 0 of 5; the final eval
-   used v2 once.
-2. **A short-window rule caught nothing.** "≥ 20 counterparties in 12 h" sounded reasonable and raised 680 alerts, but
-   caught 0 of 16 fan-in blocks, because IBM's fans spread 7–8 payments over days. Fixed windows also split blocks at
-   boundaries. This is the Scenario Studio's point: measure before going live.
-3. **Provider overload.** One eval case failed after retries with Google's `503 high demand`; it counts as needs
-   review. Gemini 2.5 Flash was closed to new users and 3.7/3.8 Flash were overloaded, which is why Flash-Lite is used.
-4. **Upload left half a file behind (fixed).** On the real day-8 file the MongoDB size guard stopped an append after
-   200,000 rows and left them in place. Appends are now all-or-nothing: a conservative size check refuses before
-   writing, and any failure rolls back the rows and labels already written (test added).
+## Quick start (Windows, PowerShell)
 
-## 8. Cost and cleanup
+Prerequisites: Git, Python 3.12, Node.js LTS, Docker Desktop, a free Gemini API key
+([aistudio.google.com](https://aistudio.google.com)) and a Kaggle API token (Kaggle → Settings → API; save it as
+`%USERPROFILE%\.kaggleccess_token`, never in the repo). AWS (S3) is optional for a local run;
+see [PROJECT_REPORT.md](PROJECT_REPORT.md) §7 for the full setup.
 
+```powershell
+git clone <this repo> caseLens; cd caseLens
+Copy-Item .env.example .env        # then set GEMINI_API_KEY (and AWS_PROFILE, S3_BUCKET, LANGSMITH_API_KEY if used)
+py -3.12 -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install --no-cache-dir -e "backend[dev]" kaggle
+docker compose up -d mongo
 
-- **Spent so far: $0** (Gemini free tier). Token ledger: 179,094 input / 51,848 output chat tokens in 195 calls, about
-  74,800 embedding tokens. For Bedrock later: $0–5 of free credits. Defaults: 1.5 M input / 0.3 M output chat tokens, 0.4 M embedding tokens,
-  6 AI calls per case. Spend so far: `python -m app.scripts.estimate_cost` (look up current prices yourself).
-- Disk: project artifacts under 10 GB (`python -m pipeline.disk_report`).
-- Cleanup: `docker compose down -v` (deletes the MongoDB volume); delete `data\`; delete the S3 objects and bucket;
-  remove the IAM user's access keys; delete the LangSmith project if wanted.
+# data: only the two HI-Small files, never the whole Kaggle dataset
+kaggle datasets download -d ealtman2019/ibm-transactions-for-anti-money-laundering-aml -f HI-Small_Trans.csv -p data\ibm
+kaggle datasets download -d ealtman2019/ibm-transactions-for-anti-money-laundering-aml -f HI-Small_Patterns.txt -p data\ibm
+# regulator PDFs: download the three documents listed in docs\SOURCES.yaml into data\reg_docs
 
-## 9. What I would do next
+cd backend
+pytest -q                          # unit tests, no network
+python -m app.scripts.smoke        # one chat reply, one structured output, one embedding
+python -m pipeline.run --step all  # raw -> staging -> labels -> docs -> dq
+uvicorn app.main:app --port 8000
+```
 
-Rolling windows, more patterns (each with its own facts and tests), a second model as an independent judge for
-faithfulness spot-checks, and an evaluation on more than 30 alerts once the free-credit budget allows.
+```powershell
+cd frontend
+npm install
+npm run dev                        # http://localhost:5173
+```
+
+**Demo accounts** (shown on the sign-in page; local prototype only):
+
+| Role | Username / password | Can do |
+|---|---|---|
+| Risk owner | `meera` / `owner123` | Write, approve and run rules; upload transactions |
+| Analyst | `ravi` / `analyst123` | Investigate alerts; dismiss, escalate or ask for more info |
+
+Other ports: set `API_BASE_URL` and `CORS_ORIGINS` in `.env`, and `VITE_API_BASE` in `frontend/.env.local`.
+
+**Command-line tools** (AI spending is estimated first and refused if over budget):
+
+| Command | Purpose |
+|---|---|
+| `python -m app.eval.run_scenario_eval --dry-run` / `--yes` | Evaluation 1: 20 worries |
+| `python -m app.scripts.investigate --scenario-id <id> --n 5` | Investigate a few alerts |
+| `python -m app.scripts.make_dev_split --scenario-id <id>` | Build the 10 dev + 30 eval alerts |
+| `python -m app.eval.run_case_eval --split dev --tune` | Prompt work and baseline tuning (dev only) |
+| `python -m app.eval.run_case_eval --split eval` | Final comparison of systems A, B, C |
+| `python -m pipeline.disk_report` | Disk use against the 10 GB budget |
+
+## Repository layout
+
+```
+backend/
+  app/            FastAPI app: api/, auth.py, rules/ (fan rule), scenario/, investigation/ (LangGraph),
+                  tools/ (read-only, allow-listed), eval/, scripts/, llm.py (providers + token ledger)
+  pipeline/       raw -> staging -> labels -> docs -> dq, uploads, disk report
+  tests/          unit + integration tests (fake LLMs and embeddings, no network)
+frontend/src/     React app: pages/ (sign-in, owner and analyst workspaces), components/, api/, lib/
+docs/             design specs 01-05, DATA_NOTES, SOURCES, WALKTHROUGH, results/, screenshots/
+infra/            AWS setup scripts (S3 bucket, least-privilege IAM user)
+reference/        the tested reference code the project started from
+PROJECT_REPORT.md scope, decision log (D1-D19), architecture, milestones
+```
+
+## Design decisions
+
+- **Code collects the facts; the LLM only fills schemas.** It never writes queries or code and never sees raw rows.
+- **A checker instead of trust.** Every claim's ids and numbers are verified in code; one retry, then the case goes to
+  a human to write.
+- **Labels are hidden from the AI.** Ground truth lives only in evaluation collections; tools are allow-listed,
+  responses strip truth keys, and leakage tests check tool outputs, prompts and case documents.
+- **A human decides.** No auto-close and no auto-approve; decisions are append-only and need a reason.
+- **One switchable model provider** (`LLM_PROVIDER=gemini|bedrock`). Bedrock was the planned production path but the
+  AWS account's model access was still pending, so the measured results use Gemini (decision D18).
+- **Cost control is code:** cumulative token ledger in MongoDB that fails closed, per-case call limit, capped output,
+  dry runs, client-side rate limits.
+
+The full decision log (D1–D19) with rejected alternatives is in [PROJECT_REPORT.md](PROJECT_REPORT.md).
+
+## Limits
+
+- **Simulated data.** IBM generated HI-Small from a virtual world; results do not transfer to real banks.
+- **One pattern, fixed windows.** Other typologies are rejected on purpose. Fixed windows can split a pattern at a
+  window boundary, and a window is evaluated only when complete.
+- **Small evaluation.** 20 worries and 30 alerts; the model ignores `temperature`, so repeated runs can differ.
+- **The checker verifies support, not judgement**, and does not check numbers written as words.
+- **Demo sign-in**, not production identity; no deployment, monitoring or real case system. **No compliance claims.**
+
+## Data and licenses
+
+IBM Transactions for Anti-Money Laundering (Kaggle, CDLA-Sharing-1.0) — not included in this repository; download it
+as shown above. Regulator documents (FinCEN, FFIEC, FATF) remain under their publishers' terms and are not included;
+see [docs/SOURCES.md](docs/SOURCES.md).
+
+## Cost and cleanup
+
+- AI spend so far: **$0** (Gemini free tier): about 179 k input / 52 k output chat tokens in 195 calls, plus about
+  75 k embedding tokens. Budgets: 1.5 M input / 0.3 M output chat tokens, 0.4 M embedding tokens, 6 AI calls per case.
+- Disk: 1.4 GB of the 10 GB budget after loading 8 days of data.
+- Cleanup: `docker compose down -v`, delete `data\`, empty and delete the S3 bucket, deactivate the IAM user's keys.
+
+## What I would do next
+
+Rolling windows, a second pattern with its own facts and tests, a larger evaluation, an independent judge model for
+faithfulness spot checks, measuring the Bedrock path once access is granted, and a read-only guest mode for a public
+demo.

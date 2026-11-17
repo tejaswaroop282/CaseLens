@@ -102,17 +102,21 @@ function UploadRow({ u }: { u: Upload }) {
   const runNew = useMutation({ mutationFn: api.runAllOnNewData,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["scenarios"] }) });
   const r = u.report;
+  // a re-upload of data that is already loaded is not an error: it is the dedupe working
+  const nothingNew = u.status === "invalid" && (r?.rows ?? 0) > 0 && r?.to_append === 0 && (r?.already_loaded ?? 0) > 0;
   return (
     <div className="px-5 py-4">
       <div className="flex flex-wrap items-center gap-3">
         <Icon name="database" className="h-4 w-4 text-slate-400" />
         <span className="font-medium text-slate-900">{u.filename}</span>
         <span className="text-xs text-slate-500">{fmtBytes(u.bytes)} · {fmtDateTime(u.created_at)}{u.has_patterns && " · with patterns file"}</span>
-        <span className="ml-auto"><StatusPill status={u.status} /></span>
+        <span className="ml-auto">{nothingNew ? <Pill tone="slate" dot>Nothing new</Pill> : <StatusPill status={u.status} />}</span>
       </div>
 
       {u.status === "validating" && <p className="mt-2 text-sm text-slate-500">Checking every row…</p>}
-      {u.status === "invalid" && <div className="mt-3"><Callout tone="red" icon="alert" title="Not added">{r?.error}</Callout></div>}
+      {u.status === "invalid" && (nothingNew
+        ? <div className="mt-3"><Callout tone="blue" icon="info" title="Nothing to add">Every row in this file is already loaded, so nothing changed.</Callout></div>
+        : <div className="mt-3"><Callout tone="red" icon="alert" title="Not added">{r?.error}</Callout></div>)}
       {u.status === "failed" && <div className="mt-3"><Callout tone="red" icon="alert" title="Append failed">{u.error}</Callout></div>}
 
       {r?.ok && u.status !== "appended" && (
