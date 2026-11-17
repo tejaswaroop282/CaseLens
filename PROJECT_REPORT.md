@@ -92,7 +92,7 @@ flowchart LR
       MDB[("MongoDB 7")]
     end
   end
-  BR["LLM provider (D18): Gemini 2.5 Flash + Gemini embeddings now; Bedrock later"]
+  BR["LLM provider (D18): Gemini 3.5 Flash-Lite + Gemini embeddings now; Bedrock later"]
   LS["LangSmith"]
   S3 --> PIPE
   PIPE --> MDB
@@ -141,7 +141,7 @@ Reference-diagram mapping: Snowflake Raw/Staging/Intermediate/Marts → S3 `raw/
 | D15 | **Only MongoDB runs in Docker**; FastAPI, pipeline and React run directly on Windows | User choice; lighter | Docker for everything |
 | D16 | Small test sets: 20 intents, 10 dev alerts, 30 eval alerts | Cost | Large evaluations |
 | D17 | **Upload of new transaction files (M7)**, appended to staging; scenarios can run on a **date range** and on **new data only**. Added 2026-11-12 at the user's request | The user has no live feed; without uploads the app cannot show "new data arrives → new alerts". Date ranges let a risk owner design a rule on one period and validate it on an unseen period. Costs no extra AWS services and no AI tokens | Live streaming API; replacing data on each upload; "a scenario runs once" (now: one full run, then further runs on a range or on new data) |
-| D18 | **Model provider switch; Google Gemini API used now, Bedrock kept as the production path.** `LLM_PROVIDER=gemini` uses `gemini-2.5-flash` (thinking budget 0) and `gemini-embedding-001` at 512 dimensions, L2-normalized; `LLM_PROVIDER=bedrock` uses D11 unchanged. Every call still goes through the token ledger, temperature 0, capped output and the per-case call limit; a client-side rate limit (`LLM_REQUESTS_PER_MINUTE`) respects free-tier quotas. Added 2026-11-17 at the user's request | On the user's account (free plan, verification pending) every Bedrock call, including Amazon's own Titan, returned `ValidationException: Operation not allowed` for three days; support cases stayed unassigned. The free Gemini tier needs no card and covers chat and embeddings with one key. Data sent is simulated public data plus public regulator text; Google may use free-tier inputs to improve its models | Waiting for AWS; a local model via Ollama (about 6 GB of disk, weaker schema filling); paid APIs |
+| D18 | **Model provider switch; Google Gemini API used now, Bedrock kept as the production path.** `LLM_PROVIDER=gemini` uses `gemini-3.5-flash-lite` (no hidden reasoning tokens) and `gemini-embedding-001` at 512 dimensions, L2-normalized; `LLM_PROVIDER=bedrock` uses D11 unchanged. Every call still goes through the token ledger, temperature 0, capped output and the per-case call limit; a client-side rate limit (`LLM_REQUESTS_PER_MINUTE`) respects free-tier quotas. Added 2026-11-17 at the user's request | On the user's account (free plan, verification pending) every Bedrock call, including Amazon's own Titan, returned `ValidationException: Operation not allowed` for three days; support cases stayed unassigned. The free Gemini tier needs no card and covers chat and embeddings with one key. Data sent is simulated public data plus public regulator text; Google may use free-tier inputs to improve its models. Model choice measured on 2026-11-17: `gemini-2.5-flash` is closed to new users; 3.8 and 3.7 Flash returned 503 (high demand); 3.6 and 3.5 Flash answered a one-word prompt in 2–4 minutes; 3.5 Flash-Lite answered in about 1 s and passed the smoke test (structured output exact, 512-dim embeddings). **This model ignores `temperature`** (fixed sampling), so repeated runs can differ slightly; evaluations report one run each | Waiting for AWS; a local model via Ollama (about 6 GB of disk, weaker schema filling); paid APIs |
 
 ## 6. Tech stack and tested versions
 
@@ -225,7 +225,7 @@ Read only in `backend/app/config.py`.
 | Variable | Default | Meaning |
 |---|---|---|
 | `LLM_PROVIDER` | `gemini` | `gemini` or `bedrock` (D18) |
-| `GEMINI_API_KEY`, `GEMINI_LLM_ID`, `GEMINI_EMBED_ID`, `GEMINI_THINKING_BUDGET` | none, `gemini-2.5-flash`, `gemini-embedding-001`, `0` | Gemini provider |
+| `GEMINI_API_KEY`, `GEMINI_LLM_ID`, `GEMINI_EMBED_ID`, `GEMINI_THINKING_BUDGET` | none, `gemini-3.5-flash-lite`, `gemini-embedding-001`, empty | Gemini provider |
 | `LLM_REQUESTS_PER_MINUTE` | `0` (none) | Client-side rate limit for chat calls |
 | `AWS_REGION`, `AWS_PROFILE` | none | Bedrock and S3 |
 | `S3_BUCKET` | none | Raw bucket |

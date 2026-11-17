@@ -30,9 +30,9 @@ class Settings(BaseSettings):
 
     # Gemini (Google AI Studio API key)
     gemini_api_key: Optional[str] = None
-    gemini_llm_id: str = "gemini-2.5-flash"
+    gemini_llm_id: str = "gemini-3.5-flash-lite"
     gemini_embed_id: str = "gemini-embedding-001"
-    gemini_thinking_budget: Optional[int] = 0   # 0 = no hidden reasoning tokens (keeps output within the cap)
+    gemini_thinking_budget: Optional[int] = None  # empty = model default; Gemini 3.x Flash-Lite thinks only if asked
 
     # Bedrock
     bedrock_llm_id: Optional[str] = None

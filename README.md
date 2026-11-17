@@ -55,7 +55,7 @@ Regulator PDFs (3) ─────┴─► S3 raw/ ─► pipeline ─► Mongo
 ```
 
 - Only **MongoDB runs in Docker**; FastAPI, the pipeline and React run on Windows. Chroma is embedded (`data/chroma`).
-- **Model provider behind one switch** (`LLM_PROVIDER`, decision D18). Measured with **Google Gemini 2.5 Flash** and
+- **Model provider behind one switch** (`LLM_PROVIDER`, decision D18). Measured with **Google Gemini 3.5 Flash-Lite** and
   **Gemini embeddings** (free API tier). **Amazon Bedrock** (Qwen3 Next 80B plus Titan Text Embeddings v2 in `ap-south-1`)
   is implemented as the production path but not yet measured: the AWS account's Bedrock access was still pending.
 - AWS: **S3 and IAM** for raw data; Bedrock when enabled.
@@ -151,7 +151,7 @@ hold only measured numbers:
 |---|---|---|---|---|---|---|---|
 | A. Rule only | | | | | | | |
 | B. Code baseline (CV_MAX=…, REPEAT_MIN=…) | | | | | | | |
-| C. CaseLens (Gemini 2.5 Flash, prompt v1) | | | | | | | |
+| C. CaseLens (Gemini 3.5 Flash-Lite, prompt v1) | | | | | | | |
 
 **Failures:** 3 to 5 concrete cases (what the system said, what was true, why, what changed) — to be written after
 the runs. **Limits:** see §2.

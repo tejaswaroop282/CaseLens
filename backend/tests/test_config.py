@@ -15,7 +15,7 @@ def test_extra_request_fields_json(monkeypatch):
 
 def test_env_example_selects_gemini_without_a_key():
     s = Settings(_env_file=REPO_ROOT / ".env.example")
-    assert s.llm_provider == "gemini" and s.gemini_api_key is None and s.gemini_thinking_budget == 0
+    assert s.llm_provider == "gemini" and s.gemini_api_key is None and s.gemini_thinking_budget is None and s.gemini_llm_id == "gemini-3.5-flash-lite"
     assert s.llm_model_id == s.gemini_llm_id and s.embed_model_id == s.gemini_embed_id
 
 
