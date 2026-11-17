@@ -107,7 +107,7 @@ def run_docs(db, force: bool = False) -> Optional[dict]:
         else:
             s3io.ensure_local(local, key)
             checksums[d["doc_id"]] = sha256_file(local)
-    chash = config_hash(checksums, {"embed_id": s.bedrock_embed_id, "dims": s.embed_dimensions,
+    chash = config_hash(checksums, {"embed_id": s.embed_model_id, "dims": s.embed_dimensions,
                                     "chunk": [CHUNK_SIZE, CHUNK_OVERLAP]})
     if should_skip(db, "docs", chash, force):
         return None
