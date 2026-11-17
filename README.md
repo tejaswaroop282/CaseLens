@@ -226,7 +226,7 @@ The full decision log (D1–D19) with rejected alternatives is in [PROJECT_REPOR
 
 ## Data and licenses
 
-IBM Transactions for Anti-Money Laundering (Kaggle, CDLA-Sharing-1.0) — not included in this repository; download it
+Code: [MIT](LICENSE). IBM Transactions for Anti-Money Laundering (Kaggle, CDLA-Sharing-1.0) — not included in this repository; download it
 as shown above. Regulator documents (FinCEN, FFIEC, FATF) remain under their publishers' terms and are not included;
 see [docs/SOURCES.md](docs/SOURCES.md).
 
