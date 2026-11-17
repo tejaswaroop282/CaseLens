@@ -93,6 +93,17 @@ npm install
 npm run dev                          # http://localhost:5173 (set VITE_API_BASE if the API is not on :8000)
 ```
 
+### Signing in (D19)
+
+Open the web app and pick a demo account on the sign-in page. Each role has its own workspace, and the server enforces it:
+
+| Role | Account | Workspace |
+|---|---|---|
+| Risk owner | `meera` / `owner123` | Overview, Scenario Studio (write, approve, run rules), Upload transactions |
+| Analyst | `ravi` / `analyst123` | Overview (cases ready for a decision), Alert queue, case files, decisions |
+
+Approvals and decisions are recorded under the signed-in user. These are demo credentials for a local prototype.
+
 Command-line tools (all AI spending is estimated first and refused if over budget):
 
 | Command | Purpose |
@@ -109,7 +120,8 @@ Command-line tools (all AI spending is estimated first and refused if over budge
 1. **Data** page → drop a CSV (IBM transaction format, optional IBM patterns file) → **Upload and check**. The
    validation report shows rows read, rows to add, rows already loaded, and rejected rows with reasons. Nothing is
    saved yet.
-2. **Add rows to the data** → rows are appended (the original file goes to S3 `raw/uploads/` when a bucket is set).
+2. **Add rows to the data** → rows are appended all-or-nothing (refused up front if MongoDB would pass `MONGO_MAX_GB`;
+   rolled back on any failure). The original file goes to S3 `raw/uploads/` when a bucket is set.
 3. **Run approved scenarios on new data** → new alerts appear in the Alert queue; old alerts are never duplicated.
 4. On a scenario page, **Run again → Date range** lets a rule designed on one period be checked on another
    (for example, design on day 1, validate on day 2) and compared in the run history.
@@ -139,27 +151,67 @@ See `docs/SOURCES.md` (IBM AML: CDLA-Sharing-1.0; regulator documents under thei
 
 ## 7. Results
 
-**Not measured yet.** The pipeline, rule, Scenario Studio, investigation graph and UI are built and tested with fake
-models (118 automated tests). The data is loaded (168-hour slice) and verified (`docs/DATA_NOTES.md`); the AI runs are
-next. This section will
-hold only measured numbers:
+All numbers below were measured on 2026-11-17 on the 168-hour HI-Small slice (3,731,672 transactions, 24 fan-out and
+16 fan-in labeled blocks) with **Gemini 3.5 Flash-Lite** (decision D18). Raw tables: `docs/results/`. The model ignores
+`temperature`, so a repeated run can differ slightly; each configuration was run once.
 
-- Scenario metrics (alert count, precision, pattern recall) for fan-out and fan-in on the chosen slice.
-- Eval set 1 (20 worries): schema validity, direction match, parameters in expectation, correct rejection.
-- Eval set 2 (results table below), produced by `run_case_eval` into `docs/results/`.
+### Scenario Studio on real data
 
-| System | n | False-clear | Auto-clear | Review load | Checker after-retry | Avg latency | Avg tokens |
+| Rule (approved by a human) | Alerts | Precision | Pattern recall |
+|---|---|---|---|
+| Fan-in, ≥ 20 counterparties in 12 h | 680 | 8.1 % | **0 / 16** |
+| Fan-in, ≥ 8 counterparties in 72 h | 2,381 | 7.7 % | 4 / 11 |
+| Fan-out, ≥ 10 counterparties in 72 h | 2,815 | 2.1 % | 4 / 19 |
+
+Precision counts an alert as suspicious if any of its transactions is labeled laundering. Recall counts labeled fan
+blocks that lie fully inside the evaluated windows (only complete windows are evaluated, so a 72-hour rule covers
+144 of the 168 hours). IBM's fan patterns are "low and slow" (median 7–8 transactions over about 3–4 days,
+`docs/DATA_NOTES.md`), so a plausible short-window rule caught none of them; longer windows catch some at the cost of
+many false alarms.
+
+### Eval set 1: worry → rule (20 worries)
+
+| Schema valid | Direction correct | Numbers in expected range | Unsupported worries rejected | Mean latency | Tokens |
+|---|---|---|---|---|---|
+| 20 / 20 | 20 / 20 | 12 / 12 | 8 / 8 | 7.8 s | 7,283 in / 2,241 out |
+
+### Eval set 2: case files (30 held-out fan-out alerts, 15 suspicious / 15 not)
+
+| System | n | False-clear | Auto-clear | Review load | Checker after-retry | Avg latency | Avg tokens (in/out) |
 |---|---|---|---|---|---|---|---|
-| A. Rule only | | | | | | | |
-| B. Code baseline (CV_MAX=…, REPEAT_MIN=…) | | | | | | | |
-| C. CaseLens (Gemini 3.5 Flash-Lite, prompt v1) | | | | | | | |
+| A. Rule only | 30 | 0.0 % | 0.0 % | 100.0 % | — | — | — |
+| B. Code baseline (CV_MAX=0.01, REPEAT_MIN=0.9, tuned on dev) | 30 | 0.0 % | 0.0 % | 100.0 % | — | — | — |
+| C. CaseLens (Gemini 3.5 Flash-Lite, prompt v2) | 30 | **0.0 %** | 0.0 % | 100.0 % | 96.7 % | 26.0 s | 3,071 / 846 |
 
-**Failures:** 3 to 5 concrete cases (what the system said, what was true, why, what changed) — to be written after
-the runs. **Limits:** see §2.
+CaseLens detail: checker first-pass 93.3 %, citation validity 100 %, 1 case failed (see below).
+
+**What this shows, honestly.** CaseLens met the safety goal (no suspicious alert marked likely legitimate) and every
+claim it made was supported by cited facts, but it **did not reduce the review load**: it sent every alert to a human,
+as did the tuned code baseline. On this data the value is a drafted, evidence-checked case file in about 26 seconds,
+not automatic triage. With 30 alerts the false-clear estimate is coarse (0 of 15 suspicious).
+
+### Failures and what changed
+
+1. **False clear on the dev split (prompt v1).** Alert `3bb81743e3af4173`: 3,263 payments to 694 accounts in 72 h,
+   650 in cash, amount variation 13× the mean. The model called it "likely legitimate" because every counterparty
+   was a repeat one, although the prompt said to clear only if "nothing points the other way". Prompt v2 lists five
+   concrete red flags tied to fact ids (irregular amounts, cash or Bitcoin, few repeat counterparties, a volume spike
+   against history, no history); any one forbids a clear. Dev false-clear went from 1 of 5 to 0 of 5; the final eval
+   used v2 once.
+2. **A short-window rule caught nothing.** "≥ 20 counterparties in 12 h" sounded reasonable and raised 680 alerts, but
+   caught 0 of 16 fan-in blocks, because IBM's fans spread 7–8 payments over days. Fixed windows also split blocks at
+   boundaries. This is the Scenario Studio's point: measure before going live.
+3. **Provider overload.** One eval case failed after retries with Google's `503 high demand`; it counts as needs
+   review. Gemini 2.5 Flash was closed to new users and 3.7/3.8 Flash were overloaded, which is why Flash-Lite is used.
+4. **Upload left half a file behind (fixed).** On the real day-8 file the MongoDB size guard stopped an append after
+   200,000 rows and left them in place. Appends are now all-or-nothing: a conservative size check refuses before
+   writing, and any failure rolls back the rows and labels already written (test added).
 
 ## 8. Cost and cleanup
 
-- Budget: Gemini free tier now (no card); for Bedrock, $0–5 of free credits. Defaults: 1.5 M input / 0.3 M output chat tokens, 0.4 M embedding tokens,
+
+- **Spent so far: $0** (Gemini free tier). Token ledger: 179,094 input / 51,848 output chat tokens in 195 calls, about
+  74,800 embedding tokens. For Bedrock later: $0–5 of free credits. Defaults: 1.5 M input / 0.3 M output chat tokens, 0.4 M embedding tokens,
   6 AI calls per case. Spend so far: `python -m app.scripts.estimate_cost` (look up current prices yourself).
 - Disk: project artifacts under 10 GB (`python -m pipeline.disk_report`).
 - Cleanup: `docker compose down -v` (deletes the MongoDB volume); delete `data\`; delete the S3 objects and bucket;
