@@ -100,11 +100,45 @@ def new_data_end(meta: dict, ts_max: datetime) -> datetime:
     return max(meta["slice_end"], nxt)
 
 
-def append(db, path: Path, upload_id: str, seq: int) -> dict:
-    """Append new rows. Returns counts. Raises on the MongoDB size guard (rows inserted so far stay)."""
+# Measured on the real slice (2026-11-18): appending 200,000 rows grew MongoDB by about 0.26 GB, i.e. about
+# 1.3 KB per new row, while the compacted average is about 0.28 KB per row. Fresh inserts cost far more until
+# compaction, so the projection uses the larger of the two.
+NEW_ROW_BYTES = 1400
+
+
+def projected_size_gb(db, new_rows: int) -> float:
+    """Conservative MongoDB size after adding `new_rows` staging rows (data + indexes)."""
+    st = db.command("collStats", "stg_transactions")
+    n = st.get("count", 0) or 1
+    per_row = max((st.get("storageSize", 0) + st.get("totalIndexSize", 0)) / n, NEW_ROW_BYTES)
+    return mongo_size_gb(db) + new_rows * per_row / 1024 ** 3
+
+
+def rollback(db, upload_id: str, prefix: str) -> dict:
+    """Remove everything a failed append wrote: its staging rows and the labels of those rows."""
+    tx = db.stg_transactions.delete_many({"upload_id": upload_id}).deleted_count
+    lb = db.stg_labels.delete_many({"tx_id": {"$regex": f"^{prefix}-"}}).deleted_count
+    log.warning("upload_rolled_back", upload_id=upload_id, rows_removed=tx, labels_removed=lb)
+    return {"rows_removed": tx, "labels_removed": lb}
+
+
+def append(db, path: Path, upload_id: str, seq: int, expected_rows: Optional[int] = None) -> dict:
+    """Append new rows. Returns counts. All or nothing: refuses up front when the projected MongoDB size exceeds
+    MONGO_MAX_GB, and on any failure removes the rows and labels it already wrote before re-raising."""
     s = get_settings()
-    meta = db.pipeline_meta.find_one({"_id": "meta"})
+    if expected_rows and (gb := projected_size_gb(db, expected_rows)) > s.mongo_max_gb:
+        raise RuntimeError(f"adding {expected_rows:,} rows would grow MongoDB to about {gb:.2f} GB "
+                           f"> MONGO_MAX_GB={s.mongo_max_gb}; nothing was added")
     prefix = f"UP{seq:03d}"
+    try:
+        return _append(db, path, upload_id, prefix, s)
+    except Exception:
+        rollback(db, upload_id, prefix)
+        raise
+
+
+def _append(db, path: Path, upload_id: str, prefix: str, s) -> dict:
+    meta = db.pipeline_meta.find_one({"_id": "meta"})
     remaining: Optional[Counter] = None
     counts = {"rows": 0, "appended": 0, "already_loaded": 0, "rejected": 0, "labels_added": 0}
     ts_max = None
@@ -138,7 +172,7 @@ def append(db, path: Path, upload_id: str, seq: int) -> dict:
         if counts["rows"] >= next_check:
             next_check += SIZE_CHECK_EVERY
             if (gb := mongo_size_gb(db)) > s.mongo_max_gb:
-                raise RuntimeError(f"MongoDB is {gb:.2f} GB > MONGO_MAX_GB={s.mongo_max_gb}; upload stopped")
+                raise RuntimeError(f"MongoDB is {gb:.2f} GB > MONGO_MAX_GB={s.mongo_max_gb}; upload stopped and rolled back")
     if ts_max is not None:
         end = new_data_end(meta, ts_max)
         db.pipeline_meta.update_one({"_id": "meta"}, {

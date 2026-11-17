@@ -61,7 +61,8 @@ def _append_job(db, upload_id: str) -> None:
         except Exception as e:                       # raw copy is best effort; the append itself must not depend on AWS
             log.warning("upload_s3_copy_failed", upload_id=upload_id, error=type(e).__name__)
         seq = db.uploads.count_documents({"status": "appended"}) + 1
-        counts = up.append(db, folder / "transactions.csv", upload_id, seq)
+        counts = up.append(db, folder / "transactions.csv", upload_id, seq,
+                           expected_rows=(u.get("report") or {}).get("to_append"))
         if u.get("has_patterns"):
             counts["relabel"] = up.relabel_from_patterns(db, folder / "patterns.txt")
         db.uploads.update_one({"upload_id": upload_id}, {"$set": {"status": "appended", "result": counts,

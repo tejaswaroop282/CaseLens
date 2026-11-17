@@ -87,6 +87,31 @@ def test_append_extends_data_and_reupload_adds_nothing(mongo_db, tmp_path):
 
 
 @pytest.mark.integration
+def test_failed_append_is_rolled_back_and_size_is_checked_first(mongo_db, tmp_path, monkeypatch):
+    """Found on real data: the size guard stopped an append halfway and left 200,000 rows behind."""
+    load_base(mongo_db, tmp_path)
+    p = write(tmp_path, "day2.csv", day_rows(1, lab_first=True))
+    calls = {"n": 0}
+
+    def size_after_first_chunk(db):
+        calls["n"] += 1
+        return 99.0                                         # guard trips after rows were already inserted
+    monkeypatch.setattr(up, "SIZE_CHECK_EVERY", 1)
+    monkeypatch.setattr(up, "mongo_size_gb", size_after_first_chunk)
+    with pytest.raises(RuntimeError, match="rolled back"):
+        up.append(mongo_db, p, "u1", 1)
+    assert mongo_db.stg_transactions.count_documents({"upload_id": "u1"}) == 0       # nothing left behind
+    assert mongo_db.stg_labels.count_documents({}) == 0
+    assert mongo_db.pipeline_meta.find_one({"_id": "meta"})["slice_hours"] == 24     # data end unchanged
+    # projected size over the limit: refused before writing anything
+    monkeypatch.setattr(up, "mongo_size_gb", lambda db: 0.5)
+    monkeypatch.setattr(up, "projected_size_gb", lambda db, n: 5.0)
+    with pytest.raises(RuntimeError, match="nothing was added"):
+        up.append(mongo_db, p, "u2", 1, expected_rows=6)
+    assert mongo_db.stg_transactions.count_documents({}) == 6
+
+
+@pytest.mark.integration
 def test_genuine_duplicates_inside_a_new_file_are_kept(mongo_db, tmp_path):
     load_base(mongo_db, tmp_path)
     row = line(O + timedelta(hours=26), to="8000DUP00")
